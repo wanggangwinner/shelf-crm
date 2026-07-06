@@ -14,6 +14,7 @@ import type {
 
 const STORAGE_KEY = 'shelf-crm-foundation-state-v2';
 const SYSTEM_TEAM_ID = '00000000-0000-0000-0000-000000000000';
+const DEVELOPMENT_USER_NAME = '开发测试用户';
 
 interface FoundationState {
   user?: User;
@@ -37,13 +38,21 @@ function emptyState(): FoundationState {
   };
 }
 
+function normalizeDevelopmentState(state: FoundationState): FoundationState {
+  if (state.user?.isDevelopmentUser && state.user.name !== DEVELOPMENT_USER_NAME) {
+    state.user.name = DEVELOPMENT_USER_NAME;
+  }
+
+  return state;
+}
+
 function loadState(): FoundationState {
   if (typeof localStorage === 'undefined') {
     return emptyState();
   }
 
   const raw = localStorage.getItem(STORAGE_KEY);
-  return raw ? JSON.parse(raw) : emptyState();
+  return normalizeDevelopmentState(raw ? JSON.parse(raw) : emptyState());
 }
 
 function saveState(state: FoundationState): void {
@@ -99,7 +108,7 @@ export function developmentLogin(): User {
   if (!state.user) {
     state.user = {
       id: createId(),
-      name: 'MVP-A Development User',
+      name: DEVELOPMENT_USER_NAME,
       isDevelopmentUser: true,
       createdAt: now(),
     };
