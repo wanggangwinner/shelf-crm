@@ -77,6 +77,10 @@ The `build`, `test`, and `dev` scripts use Node scripts instead of shell-only co
 
 Task 01 intentionally completes onboarding in one lightweight screen. Later tasks may split onboarding into a true multi-step flow, but this PR does not implement customer management, duplicate detection, AI extraction, quotation/order/receivables, or file upload business flows.
 
+## Reviewer note
+
+Task 01 has passed product-scope review after the Windows-compatible script update and the Web navigation correction. After merging, verify locally on Windows with `npm install`, `npm run build`, `npm test`, and `npm run dev` before starting Task 02.
+
 ## Remaining for Task 02
 
 Do not treat placeholder module cards as implemented CRM features. The next issue should add the actual customer module only: customer list, creation, duplicate detection, detail status card, ownership history, and filters.
