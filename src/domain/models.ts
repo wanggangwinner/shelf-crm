@@ -161,3 +161,39 @@ export interface CreateCustomerInput {
   nextFollowTime?: string;
   ignoreDuplicateWarning?: boolean;
 }
+
+export type FollowUpMethod = '微信' | '电话' | '面谈' | '其他';
+
+export interface FollowUpAiDraft {
+  summary: string;
+  objections: string[];
+  blockers: string[];
+  nextAction: string;
+  nextFollowTime?: string;
+  confidence: number;
+}
+
+export interface FollowUpRecord {
+  id: string;
+  team_id: string;
+  customerId: string;
+  ownerUserId: string;
+  method: FollowUpMethod;
+  rawContent: string;
+  summary: string;
+  objections: string[];
+  blockers: string[];
+  nextAction: string;
+  nextFollowTime: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateFollowUpInput {
+  customerId: string;
+  method: FollowUpMethod;
+  rawContent: string;
+  summary?: string;
+  nextAction?: string;
+  nextFollowTime?: string;
+}
