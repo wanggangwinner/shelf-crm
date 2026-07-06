@@ -1,4 +1,5 @@
 import type { CreatePaymentInput, PaymentRecord, SalesOrder, SessionContext } from '../domain/models.js';
+import { completeTask, listTasks } from './mvpFlow.js';
 
 const STORAGE_KEY = 'shelf-crm-order-flow-state-v1';
 
@@ -25,5 +26,11 @@ export function recordCollection(session: SessionContext, input: CreatePaymentIn
   order.status = order.receivableNodes.every((item) => item.status === '已收款') ? '已完成' : node.title === '定金' && node.status === '已收款' ? '待尾款' : order.status;
   order.updatedAt = now();
   saveState(state);
+
+  if (node.status === '已收款') {
+    const pendingTask = listTasks(session).find((task) => task.relatedId === order.id && task.status === '待处理' && task.title.includes(node.title));
+    if (pendingTask) completeTask(session, pendingTask.id);
+  }
+
   return { order, record };
 }
