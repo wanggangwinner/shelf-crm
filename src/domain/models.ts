@@ -197,3 +197,121 @@ export interface CreateFollowUpInput {
   nextAction?: string;
   nextFollowTime?: string;
 }
+
+export type TaskStatus = '待处理' | '已完成';
+export type TaskSource = '手动' | '跟进生成' | '报价生成' | '订单生成' | '回款生成';
+
+export interface SalesTask {
+  id: string;
+  team_id: string;
+  customerId: string;
+  ownerUserId: string;
+  title: string;
+  dueAt: string;
+  status: TaskStatus;
+  source: TaskSource;
+  relatedId?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface CreateTaskInput {
+  customerId: string;
+  title: string;
+  dueAt?: string;
+  source?: TaskSource;
+  relatedId?: string;
+}
+
+export type QuotationStatus = '草稿' | '已发送' | '客户确认';
+
+export interface QuotationLineItem {
+  id: string;
+  productName: string;
+  specification: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  remark: string;
+}
+
+export interface Quotation {
+  id: string;
+  team_id: string;
+  customerId: string;
+  version: number;
+  status: QuotationStatus;
+  productAmount: number;
+  freightFee: number;
+  installationFee: number;
+  designFee: number;
+  discountAmount: number;
+  totalAmount: number;
+  lineItems: QuotationLineItem[];
+  feedback: string;
+  createdAt: string;
+  confirmedAt?: string;
+}
+
+export interface CreateQuotationInput {
+  customerId: string;
+  productName: string;
+  specification?: string;
+  quantity: number;
+  unitPrice: number;
+  freightFee?: number;
+  installationFee?: number;
+  designFee?: number;
+  discountAmount?: number;
+  remark?: string;
+}
+
+export type OrderStatus = '待收定金' | '生产/备货中' | '待尾款' | '已完成';
+
+export interface ReceivableNode {
+  id: string;
+  title: string;
+  plannedAmount: number;
+  receivedAmount: number;
+  dueAt: string;
+  status: '待收款' | '部分收款' | '已收款';
+}
+
+export interface PaymentRecord {
+  id: string;
+  nodeId: string;
+  amount: number;
+  paidAt: string;
+  method: string;
+  note: string;
+}
+
+export interface SalesOrder {
+  id: string;
+  team_id: string;
+  customerId: string;
+  quotationId: string;
+  orderAmount: number;
+  status: OrderStatus;
+  receivableNodes: ReceivableNode[];
+  payments: PaymentRecord[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateOrderInput {
+  customerId: string;
+  quotationId: string;
+  depositAmount: number;
+  finalPaymentAmount: number;
+  depositDueAt?: string;
+  finalDueAt?: string;
+}
+
+export interface CreatePaymentInput {
+  orderId: string;
+  nodeId: string;
+  amount: number;
+  method?: string;
+  note?: string;
+}
