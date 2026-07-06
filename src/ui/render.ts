@@ -1,6 +1,19 @@
+import {
+  createCustomer,
+  listCustomerOwnershipHistory,
+  listCustomers,
+  parseCustomerSignals,
+} from '../api/customers.js';
 import { createWorkspace, developmentLogin, getSession, hasAnyWorkspace } from '../api/devAuth.js';
 import { DEFAULT_SHELF_CONFIG } from '../domain/defaultConfig.js';
-import type { SessionContext, UserRoleCode, WorkspaceKind } from '../domain/models.js';
+import type {
+  CreateCustomerInput,
+  Customer,
+  CustomerDuplicateMatch,
+  SessionContext,
+  UserRoleCode,
+  WorkspaceKind,
+} from '../domain/models.js';
 import { MOBILE_ENTRIES, WEB_MODULES } from './modules.js';
 
 const CONFIG_LABELS: Record<keyof typeof DEFAULT_SHELF_CONFIG, string> = {
@@ -14,11 +27,21 @@ const CONFIG_LABELS: Record<keyof typeof DEFAULT_SHELF_CONFIG, string> = {
   shelfProductCategories: '货架产品类目',
 };
 
+type ActiveModule = '工作台' | '客户管理';
+
+interface CustomerPageState {
+  message?: string;
+  error?: string;
+  form?: CreateCustomerInput;
+  duplicates?: CustomerDuplicateMatch[];
+  selectedCustomerId?: string;
+}
+
 export function renderApp(root: HTMLElement): void {
   const session = getSession();
 
   if (session) {
-    renderShell(root, session);
+    renderShell(root, session, '工作台');
     return;
   }
 
@@ -28,6 +51,15 @@ export function renderApp(root: HTMLElement): void {
   }
 
   renderLogin(root);
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
 
 function renderLogin(root: HTMLElement): void {
@@ -68,7 +100,6 @@ function renderLogin(root: HTMLElement): void {
   });
 }
 
-// Task 01 keeps onboarding intentionally compact; later tasks can split this into a true multi-step flow.
 function renderOnboarding(root: HTMLElement): void {
   root.innerHTML = `
     <div class="onboarding">
@@ -107,7 +138,7 @@ function renderOnboarding(root: HTMLElement): void {
           </div>
         </div>
         <div class="first-customer">
-          后续任务将接入首个客户创建，例如“80㎡便利店货架”；本次仅完成基础界面和工作空间准备。
+          完成设置后，可在“客户管理”录入客户，例如“80平方米 超市李总 电话：15955555555 内蒙古”。
         </div>
         <button id="finish" type="button" class="primary">完成设置，进入工作台</button>
       </div>
@@ -139,7 +170,12 @@ function renderOnboarding(root: HTMLElement): void {
   });
 }
 
-function renderShell(root: HTMLElement, session: SessionContext): void {
+function renderShell(
+  root: HTMLElement,
+  session: SessionContext,
+  activeModule: ActiveModule,
+  pageState: CustomerPageState = {},
+): void {
   root.innerHTML = `
     <div class="app-shell">
       <aside class="sidebar">
@@ -152,55 +188,424 @@ function renderShell(root: HTMLElement, session: SessionContext): void {
         </div>
         <div class="workspace">
           <span>当前工作空间</span>
-          <strong>${session.currentTeam.name}</strong>
-          <em>${session.role.name}</em>
+          <strong>${escapeHtml(session.currentTeam.name)}</strong>
+          <em>${escapeHtml(session.role.name)}</em>
         </div>
         <nav aria-label="网页端主模块">
-          ${WEB_MODULES.map((moduleItem, index) => `<a class="${index === 0 ? 'active' : ''}">${moduleItem.name}</a>`).join('')}
+          ${WEB_MODULES.map(
+            (moduleItem) => `
+              <a class="${moduleItem.name === activeModule ? 'active' : ''}" data-module="${escapeHtml(moduleItem.name)}">
+                ${escapeHtml(moduleItem.name)}
+              </a>
+            `,
+          ).join('')}
         </nav>
       </aside>
       <main class="main">
-        <header class="page-header">
-          <div>
-            <p>MVP-A 基础版</p>
-            <h1>今天工作台</h1>
-            <span>先把登录、工作空间、默认配置和团队隔离打牢，后续再接入真实业务链路。</span>
-          </div>
-          <div class="user">👤 ${session.user.name}</div>
-        </header>
-        <section class="hero">
-          <div>
-            <span class="section-label">基础能力已就绪</span>
-            <h2>为货架销售团队准备的轻量起步工作台</h2>
-            <p>当前阶段仅展示产品框架、移动端入口和行业默认配置，不写入客户、报价、订单或回款业务数据。</p>
-          </div>
-          <div class="hero-panel">
-            <strong>下一步</strong>
-            <span>客户管理模块将在后续任务接入</span>
-          </div>
-        </section>
-        <section class="cards" aria-label="基础概览">
-          <div><strong>10</strong><span>网页端主模块占位</span></div>
-          <div><strong>5</strong><span>移动端底部入口</span></div>
-          <div><strong>${Object.keys(DEFAULT_SHELF_CONFIG).length}</strong><span>行业默认配置组</span></div>
-        </section>
-        <section class="placeholder-grid">
-          ${WEB_MODULES.map(
-            (moduleItem) => `
-              <article>
-                <span>${moduleItem.accent}</span>
-                <h3>${moduleItem.name}</h3>
-                <p>${moduleItem.summary}</p>
-              </article>
-            `,
-          ).join('')}
-        </section>
+        ${activeModule === '客户管理' ? customerPageTemplate(session, pageState) : dashboardTemplate(session)}
       </main>
       <nav class="bottom-nav" aria-label="移动端底部入口">
         ${MOBILE_ENTRIES.map(
-          (entry, index) => `<a class="${index === 3 ? 'add' : ''}">${index === 3 ? '⊕ ' : ''}<span>${entry}</span></a>`,
+          (entry, index) => `<a class="${index === 3 ? 'add' : ''}" data-mobile-entry="${entry}">${index === 3 ? '⊕ ' : ''}<span>${entry}</span></a>`,
         ).join('')}
       </nav>
     </div>
   `;
+
+  root.querySelectorAll<HTMLAnchorElement>('[data-module]').forEach((link) => {
+    link.addEventListener('click', () => {
+      renderShell(root, session, link.dataset.module === '客户管理' ? '客户管理' : '工作台');
+    });
+  });
+
+  root.querySelectorAll<HTMLAnchorElement>('[data-mobile-entry]').forEach((link) => {
+    link.addEventListener('click', () => {
+      const entry = link.dataset.mobileEntry;
+      renderShell(root, session, entry === '客户' || entry === '新增' ? '客户管理' : '工作台');
+    });
+  });
+
+  if (activeModule === '客户管理') {
+    bindCustomerPage(root, session);
+  }
+}
+
+function dashboardTemplate(session: SessionContext): string {
+  const customers = listCustomers(session);
+
+  return `
+    <header class="page-header">
+      <div>
+        <p>MVP-A 基础版</p>
+        <h1>今天工作台</h1>
+        <span>客户数据、重复检测和资料完整度规则已接入，下一步继续补跟进、任务、报价和回款链路。</span>
+      </div>
+      <div class="user">👤 ${escapeHtml(session.user.name)}</div>
+    </header>
+    <section class="hero">
+      <div>
+        <span class="section-label">基础能力已就绪</span>
+        <h2>先把客户录入和去重做扎实</h2>
+        <p>客户不能只靠一个“李总/王总”保存为完整客户，系统会要求补充手机号、微信、地址或明确需求。</p>
+      </div>
+      <div class="hero-panel">
+        <strong>${customers.length}</strong>
+        <span>当前客户数</span>
+      </div>
+    </section>
+    <section class="cards" aria-label="基础概览">
+      <div><strong>10</strong><span>网页端主模块占位</span></div>
+      <div><strong>5</strong><span>移动端底部入口</span></div>
+      <div><strong>${customers.length}</strong><span>客户管理数据</span></div>
+    </section>
+    <section class="placeholder-grid">
+      ${WEB_MODULES.map(
+        (moduleItem) => `
+          <article>
+            <span>${escapeHtml(moduleItem.accent)}</span>
+            <h3>${escapeHtml(moduleItem.name)}</h3>
+            <p>${escapeHtml(moduleItem.summary)}</p>
+          </article>
+        `,
+      ).join('')}
+    </section>
+  `;
+}
+
+function customerPageTemplate(session: SessionContext, pageState: CustomerPageState): string {
+  const customers = listCustomers(session);
+  const selectedCustomer = customers.find((customer) => customer.id === pageState.selectedCustomerId) ?? customers[0];
+  const form: Partial<CreateCustomerInput> = pageState.form ?? {};
+  const parsedDemand = parseCustomerSignals(form.demandText ?? '');
+
+  return `
+    <header class="page-header">
+      <div>
+        <p>客户管理</p>
+        <h1>客户资料与快速录入</h1>
+        <span>支持需求短语解析、手机号提取、重复客户拦截和资料完整度判断。</span>
+      </div>
+      <div class="user">👤 ${escapeHtml(session.user.name)}</div>
+    </header>
+
+    <section class="cards customer-kpis" aria-label="客户概览">
+      <div><strong>${customers.length}</strong><span>当前客户数</span></div>
+      <div><strong>${customers.filter((customer) => getCompletenessStatus(customer) === '待补充资料').length}</strong><span>待补充资料</span></div>
+      <div><strong>${customers.filter((customer) => customer.level === 'A' || customer.level === 'B').length}</strong><span>A/B 重点客户</span></div>
+    </section>
+
+    <section class="customer-layout">
+      <article class="customer-form-card">
+        <div class="section-title">
+          <div>
+            <span class="section-label">新增客户</span>
+            <h2>快速录入客户</h2>
+          </div>
+          <small>示例：80平方米 超市李总 电话：15955555555 内蒙古</small>
+        </div>
+
+        ${pageState.message ? `<div class="notice success">${escapeHtml(pageState.message)}</div>` : ''}
+        ${pageState.error ? `<div class="notice error">${escapeHtml(pageState.error)}</div>` : ''}
+        ${pageState.duplicates?.length ? duplicateWarningTemplate(pageState.duplicates) : ''}
+
+        <form id="customer-form" class="customer-form">
+          <label>
+            客户/项目名称 *
+            <input name="name" value="${escapeHtml(form.name)}" placeholder="例如：临沂兰山便利店项目" required>
+          </label>
+          <label>
+            联系人
+            <input name="contactName" value="${escapeHtml(form.contactName)}" placeholder="例如：李总">
+          </label>
+          <label>
+            手机号
+            <input id="phone" name="phone" value="${escapeHtml(form.phone ?? parsedDemand.phone)}" placeholder="例如：15955555555">
+          </label>
+          <label>
+            微信号
+            <input name="wechat" value="${escapeHtml(form.wechat)}" placeholder="例如：客户微信号">
+          </label>
+          <label>
+            城市/区域
+            <input name="city" value="${escapeHtml(form.city)}" placeholder="例如：内蒙古 / 临沂兰山">
+          </label>
+          <label>
+            详细地址
+            <input name="address" value="${escapeHtml(form.address)}" placeholder="例如：兰山区人民广场附近">
+          </label>
+          <label class="full">
+            需求短语
+            <input id="demand-text" name="demandText" value="${escapeHtml(form.demandText)}" placeholder="例如：80平方米 超市李总 电话：15955555555 内蒙古">
+          </label>
+          <div class="parse-preview">
+            <span>识别面积：<strong id="parsed-area">${escapeHtml(parsedDemand.storeArea ?? '未识别')}</strong></span>
+            <span>识别店型：<strong id="parsed-store-type">${escapeHtml(parsedDemand.storeType ?? '未识别')}</strong></span>
+            <span>识别手机号：<strong id="parsed-phone">${escapeHtml(parsedDemand.phone ?? '未识别')}</strong></span>
+            <button id="parse-demand" type="button">解析并填充</button>
+          </div>
+          <label>
+            店铺类型
+            <input id="store-type" name="storeType" value="${escapeHtml(form.storeType ?? parsedDemand.storeType)}" placeholder="例如：超市">
+          </label>
+          <label>
+            面积
+            <input id="store-area" name="storeArea" value="${escapeHtml(form.storeArea ?? parsedDemand.storeArea)}" placeholder="例如：80㎡">
+          </label>
+          <label class="full">
+            客户来源
+            <input name="source" value="${escapeHtml(form.source)}" placeholder="例如：手动录入 / 客户转介绍 / 同行介绍">
+          </label>
+          <div class="form-actions">
+            <button type="submit" class="primary compact-primary">保存客户</button>
+            ${pageState.duplicates?.length ? '<button id="ignore-duplicate-create" type="button" class="secondary">确认仍然创建</button>' : ''}
+          </div>
+        </form>
+      </article>
+
+      <article class="customer-list-card">
+        <div class="section-title">
+          <div>
+            <span class="section-label">客户列表</span>
+            <h2>当前团队客户</h2>
+          </div>
+          <small>${customers.length} 条</small>
+        </div>
+        ${customers.length ? customerListTemplate(customers, selectedCustomer?.id) : emptyCustomerTemplate()}
+      </article>
+    </section>
+
+    ${selectedCustomer ? customerDetailTemplate(session, selectedCustomer) : ''}
+  `;
+}
+
+function duplicateWarningTemplate(duplicates: CustomerDuplicateMatch[]): string {
+  return `
+    <div class="notice warning">
+      <strong>发现疑似重复客户，系统已暂时拦截创建。</strong>
+      <ul>
+        ${duplicates.map((match) => `
+          <li>
+            ${escapeHtml(match.customer.name)}
+            <span>${match.reasons.map((reason) => duplicateReasonLabel(reason)).join('、')}</span>
+          </li>
+        `).join('')}
+      </ul>
+      <p>确认不是同一个客户时，再点击“确认仍然创建”。</p>
+    </div>
+  `;
+}
+
+function duplicateReasonLabel(reason: string): string {
+  const labels: Record<string, string> = {
+    phone: '手机号相同',
+    wechat: '微信相同',
+    name_city: '客户名称和城市相同',
+    similar_address: '地址相似',
+  };
+
+  return labels[reason] ?? reason;
+}
+
+function customerListTemplate(customers: Customer[], selectedCustomerId?: string): string {
+  return `
+    <div class="customer-table">
+      ${customers.map((customer) => `
+        <button type="button" class="customer-row ${customer.id === selectedCustomerId ? 'selected-row' : ''}" data-customer-id="${customer.id}">
+          <strong>${escapeHtml(customer.name)}</strong>
+          <span>${escapeHtml(customer.city || '未填写区域')}</span>
+          <span>${escapeHtml(customer.storeArea || '未填面积')}</span>
+          <em>${escapeHtml(customer.stage)}</em>
+          <b>${getCompletenessStatus(customer)}</b>
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
+
+function emptyCustomerTemplate(): string {
+  return `
+    <div class="empty-state">
+      <strong>还没有客户</strong>
+      <p>先录入一个客户。注意：只有“李总/王总”这种名字不能保存为完整客户。</p>
+    </div>
+  `;
+}
+
+function customerDetailTemplate(session: SessionContext, customer: Customer): string {
+  const history = listCustomerOwnershipHistory(session, customer.id);
+  const completenessStatus = getCompletenessStatus(customer);
+
+  return `
+    <section class="customer-detail-card">
+      <div class="section-title">
+        <div>
+          <span class="section-label">客户详情</span>
+          <h2>${escapeHtml(customer.name)}</h2>
+        </div>
+        <small>创建时间：${new Date(customer.createdAt).toLocaleString()}</small>
+      </div>
+
+      <div class="status-card">
+        <div><span>当前阶段</span><strong>${escapeHtml(customer.stage)}</strong></div>
+        <div><span>客户等级</span><strong>${escapeHtml(customer.level)}</strong></div>
+        <div><span>需求面积</span><strong>${escapeHtml(customer.storeArea || '未填写')}</strong></div>
+        <div><span>店铺类型</span><strong>${escapeHtml(customer.storeType || '未填写')}</strong></div>
+        <div class="${completenessStatus === '资料完整' ? 'complete' : 'incomplete'}"><span>资料状态</span><strong>${completenessStatus}</strong></div>
+      </div>
+
+      <div class="detail-grid">
+        <div><span>联系人</span><strong>${escapeHtml(customer.contactName || '未填写')}</strong></div>
+        <div><span>手机号</span><strong>${escapeHtml(customer.phone || '未填写')}</strong></div>
+        <div><span>微信</span><strong>${escapeHtml(customer.wechat || '未填写')}</strong></div>
+        <div><span>城市/区域</span><strong>${escapeHtml(customer.city || '未填写')}</strong></div>
+        <div><span>详细地址</span><strong>${escapeHtml(customer.address || '未填写')}</strong></div>
+        <div><span>客户来源</span><strong>${escapeHtml(customer.source || '未填写')}</strong></div>
+        <div class="full"><span>需求描述</span><strong>${escapeHtml(customer.demandText || '未填写')}</strong></div>
+      </div>
+
+      <div class="ownership-history">
+        <h3>客户归属历史</h3>
+        ${history.length ? history.map((record) => `
+          <div>
+            <strong>${record.changeType === 'created' ? '创建客户' : escapeHtml(record.changeType)}</strong>
+            <span>${escapeHtml(record.reason)} · ${new Date(record.operatedAt).toLocaleString()}</span>
+          </div>
+        `).join('') : '<p>暂无归属记录</p>'}
+      </div>
+    </section>
+  `;
+}
+
+function bindCustomerPage(root: HTMLElement, session: SessionContext): void {
+  const form = root.querySelector<HTMLFormElement>('#customer-form');
+  const demandInput = root.querySelector<HTMLInputElement>('#demand-text');
+  const storeTypeInput = root.querySelector<HTMLInputElement>('#store-type');
+  const storeAreaInput = root.querySelector<HTMLInputElement>('#store-area');
+  const phoneInput = root.querySelector<HTMLInputElement>('#phone');
+
+  root.querySelectorAll<HTMLButtonElement>('[data-customer-id]').forEach((button) => {
+    button.addEventListener('click', () => {
+      renderShell(root, session, '客户管理', { selectedCustomerId: button.dataset.customerId });
+    });
+  });
+
+  document.getElementById('parse-demand')?.addEventListener('click', () => {
+    const parsed = parseCustomerSignals(demandInput?.value ?? '');
+
+    if (storeTypeInput && !storeTypeInput.value && parsed.storeType) {
+      storeTypeInput.value = parsed.storeType;
+    }
+
+    if (storeAreaInput && !storeAreaInput.value && parsed.storeArea) {
+      storeAreaInput.value = parsed.storeArea;
+    }
+
+    if (phoneInput && !phoneInput.value && parsed.phone) {
+      phoneInput.value = parsed.phone;
+    }
+
+    const areaPreview = document.getElementById('parsed-area');
+    const typePreview = document.getElementById('parsed-store-type');
+    const phonePreview = document.getElementById('parsed-phone');
+
+    if (areaPreview) areaPreview.textContent = parsed.storeArea ?? '未识别';
+    if (typePreview) typePreview.textContent = parsed.storeType ?? '未识别';
+    if (phonePreview) phonePreview.textContent = parsed.phone ?? '未识别';
+  });
+
+  if (!form) {
+    return;
+  }
+
+  const collectInput = (): CreateCustomerInput => {
+    const formData = new FormData(form);
+
+    return {
+      name: String(formData.get('name') ?? ''),
+      contactName: String(formData.get('contactName') ?? ''),
+      phone: String(formData.get('phone') ?? ''),
+      wechat: String(formData.get('wechat') ?? ''),
+      city: String(formData.get('city') ?? ''),
+      address: String(formData.get('address') ?? ''),
+      demandText: String(formData.get('demandText') ?? ''),
+      storeType: String(formData.get('storeType') ?? ''),
+      storeArea: String(formData.get('storeArea') ?? ''),
+      source: String(formData.get('source') ?? ''),
+    };
+  };
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    const input = collectInput();
+    const validationError = validateCustomerInput(input);
+
+    if (validationError) {
+      renderShell(root, session, '客户管理', { form: input, error: validationError });
+      return;
+    }
+
+    const result = createCustomer(session, input);
+
+    if (result.blockedByDuplicates) {
+      renderShell(root, session, '客户管理', { form: input, duplicates: result.duplicates });
+      return;
+    }
+
+    renderShell(root, session, '客户管理', { message: '客户已保存', selectedCustomerId: result.customer?.id });
+  });
+
+  document.getElementById('ignore-duplicate-create')?.addEventListener('click', () => {
+    const input = { ...collectInput(), ignoreDuplicateWarning: true };
+    const result = createCustomer(session, input);
+
+    renderShell(root, session, '客户管理', {
+      message: '已忽略重复提醒并创建客户',
+      selectedCustomerId: result.customer?.id,
+    });
+  });
+}
+
+function validateCustomerInput(input: CreateCustomerInput): string | undefined {
+  const name = input.name.trim();
+
+  if (!name) {
+    return '请先填写客户/项目名称。';
+  }
+
+  if (!hasUsableCustomerSignal(input)) {
+    return '客户信息不足，请至少填写手机号、微信、地址或明确需求。';
+  }
+
+  return undefined;
+}
+
+function hasUsableCustomerSignal(input: CreateCustomerInput): boolean {
+  const parsed = parseCustomerSignals(input.demandText ?? '');
+
+  return Boolean(
+    input.phone?.trim() ||
+      parsed.phone ||
+      input.wechat?.trim() ||
+      input.address?.trim() ||
+      isClearDemand(input.demandText ?? ''),
+  );
+}
+
+function isClearDemand(demandText: string): boolean {
+  const parsed = parseCustomerSignals(demandText);
+  const normalizedDemand = demandText.trim();
+
+  return Boolean(
+    parsed.storeArea ||
+      parsed.storeType ||
+      parsed.phone ||
+      (normalizedDemand.length >= 4 && /货架|陈列|便利店|超市|药店|仓库/.test(normalizedDemand)),
+  );
+}
+
+function getCompletenessStatus(customer: Customer): '资料完整' | '待补充资料' {
+  return customer.phone || customer.wechat || customer.address || isClearDemand(customer.demandText)
+    ? '资料完整'
+    : '待补充资料';
 }
