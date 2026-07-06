@@ -19,10 +19,15 @@ interface CustomerModuleState {
   logs: OperationLog[];
 }
 
+export interface CustomerSignalParseResult extends DemandPhraseParseResult {
+  phone?: string;
+}
+
 const DEFAULT_STAGE: CustomerStage = '线索';
 const DEFAULT_LEVEL: CustomerLevel = 'C';
 
 const STORE_TYPE_KEYWORDS = ['便利店', '超市', '药店', '仓库', '母婴店', '文具店', '烟酒店'];
+const MAINLAND_MOBILE_PATTERN = /(?<!\d)1[3-9]\d{9}(?!\d)/;
 
 function emptyState(): CustomerModuleState {
   return {
@@ -88,15 +93,27 @@ function appendLog(
   });
 }
 
-export function parseDemandPhrase(phrase: string): DemandPhraseParseResult {
+export function parseCustomerSignals(phrase: string): CustomerSignalParseResult {
   const demandText = normalizeText(phrase);
-  const areaMatch = demandText.match(/(\d+(?:\.\d+)?)\s*㎡/);
+  const areaMatch = demandText.match(/(\d+(?:\.\d+)?)\s*(?:㎡|平方米|平米|平)/);
   const storeType = STORE_TYPE_KEYWORDS.find((keyword) => demandText.includes(keyword));
+  const phone = demandText.match(MAINLAND_MOBILE_PATTERN)?.[0];
 
   return {
     demandText,
     storeArea: areaMatch ? `${areaMatch[1]}㎡` : undefined,
     storeType,
+    phone,
+  };
+}
+
+export function parseDemandPhrase(phrase: string): DemandPhraseParseResult {
+  const parsed = parseCustomerSignals(phrase);
+
+  return {
+    demandText: parsed.demandText,
+    storeArea: parsed.storeArea,
+    storeType: parsed.storeType,
   };
 }
 
@@ -124,7 +141,8 @@ export function findCustomerDuplicates(
   input: CreateCustomerInput,
 ): CustomerDuplicateMatch[] {
   const state = loadState();
-  const phone = normalizePhone(input.phone);
+  const parsedDemand = parseCustomerSignals(input.demandText ?? '');
+  const phone = normalizePhone(input.phone) || normalizePhone(parsedDemand.phone);
   const wechat = normalizeWechat(input.wechat);
   const name = normalizeText(input.name);
   const city = normalizeText(input.city);
@@ -174,7 +192,7 @@ export function createCustomer(
   blockedByDuplicates: boolean;
 } {
   const state = loadState();
-  const parsedDemand = parseDemandPhrase(input.demandText ?? '');
+  const parsedDemand = parseCustomerSignals(input.demandText ?? '');
   const duplicateMatches = findCustomerDuplicates(session, input);
 
   if (duplicateMatches.length > 0 && !input.ignoreDuplicateWarning) {
@@ -191,7 +209,7 @@ export function createCustomer(
     ownerUserId: session.user.id,
     name: normalizeText(input.name),
     contactName: normalizeText(input.contactName),
-    phone: normalizePhone(input.phone),
+    phone: normalizePhone(input.phone) || normalizePhone(parsedDemand.phone),
     wechat: normalizeText(input.wechat),
     city: normalizeText(input.city),
     address: normalizeText(input.address),
