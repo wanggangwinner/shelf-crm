@@ -68,7 +68,7 @@ function renderLogin(root: HTMLElement): void {
   });
 }
 
-// Task 01 keeps onboarding intentionally compact; later tasks can split this into a true multi-step flow.
+// 第 1 阶段保持轻量单屏引导；后续任务可再拆分为真正的多步骤流程。
 function renderOnboarding(root: HTMLElement): void {
   root.innerHTML = `
     <div class="onboarding">
