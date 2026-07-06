@@ -1,6 +1,6 @@
-import type { CreateOrderInput, ReceivableNode, SalesOrder, SessionContext } from '../domain/models.js';
+import type { CreateOrderInput, ReceivableNode, SalesOrder, SalesTask, SessionContext } from '../domain/models.js';
 import { getCustomer } from './customers.js';
-import { listQuotations } from './mvpFlow.js';
+import { createTask, listQuotations } from './mvpFlow.js';
 
 const STORAGE_KEY = 'shelf-crm-order-flow-state-v1';
 
@@ -20,7 +20,7 @@ export function listOrders(session: SessionContext): SalesOrder[] {
   return loadState().orders.filter((order) => order.team_id === session.currentTeam.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-export function createOrderFromQuotation(session: SessionContext, input: CreateOrderInput): { order?: SalesOrder; error?: string } {
+export function createOrderFromQuotation(session: SessionContext, input: CreateOrderInput): { order?: SalesOrder; tasks?: SalesTask[]; error?: string } {
   if (!getCustomer(session, input.customerId)) return { error: '客户不存在或不属于当前团队。' };
   const quotation = listQuotations(session).find((item) => item.id === input.quotationId && item.customerId === input.customerId);
   if (!quotation) return { error: '报价不存在或不属于当前客户。' };
@@ -36,7 +36,19 @@ export function createOrderFromQuotation(session: SessionContext, input: CreateO
   const state = loadState();
   state.orders.push(order);
   saveState(state);
-  return { order };
+
+  const tasks = order.receivableNodes
+    .filter((node) => node.plannedAmount > 0)
+    .map((node) => createTask(session, {
+      customerId: order.customerId,
+      title: `收取${node.title} ${money(node.plannedAmount)} 元`,
+      dueAt: node.dueAt,
+      source: node.title === '定金' ? '订单生成' : '回款生成',
+      relatedId: order.id,
+    }).task)
+    .filter((task): task is SalesTask => Boolean(task));
+
+  return { order, tasks };
 }
 
 export function resetOrderFlowState(): void { localStorage.removeItem(STORAGE_KEY); }
