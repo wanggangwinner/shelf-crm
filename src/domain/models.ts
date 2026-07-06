@@ -84,3 +84,80 @@ export interface SessionContext {
   member: TeamMember;
   role: Role;
 }
+
+export type CustomerStage =
+  | '线索'
+  | '初步沟通'
+  | '资料/现场'
+  | '设计/方案'
+  | '报价谈判'
+  | '成交确认'
+  | '交付/安装'
+  | '回款/售后'
+  | '复购/转介绍/流失';
+
+export type CustomerLevel = 'A' | 'B' | 'C' | 'D';
+
+export interface Customer {
+  id: string;
+  team_id: string;
+  ownerUserId: string;
+  name: string;
+  contactName: string;
+  phone: string;
+  wechat: string;
+  city: string;
+  address: string;
+  storeType: string;
+  storeArea: string;
+  demandText: string;
+  source: string;
+  stage: CustomerStage;
+  level: CustomerLevel;
+  riskTags: string[];
+  nextFollowTime: string;
+  latestFollowSummary: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
+}
+
+export interface CustomerOwnershipHistory {
+  id: string;
+  team_id: string;
+  customerId: string;
+  fromOwnerId?: string;
+  toOwnerId: string;
+  changeType: 'created';
+  reason: string;
+  operatedBy: string;
+  operatedAt: string;
+}
+
+export interface DemandPhraseParseResult {
+  storeArea?: string;
+  storeType?: string;
+  demandText: string;
+}
+
+export type DuplicateReason = 'phone' | 'wechat' | 'name_city' | 'similar_address';
+
+export interface CustomerDuplicateMatch {
+  customer: Customer;
+  reasons: DuplicateReason[];
+}
+
+export interface CreateCustomerInput {
+  name: string;
+  contactName?: string;
+  phone?: string;
+  wechat?: string;
+  city?: string;
+  address?: string;
+  storeType?: string;
+  storeArea?: string;
+  demandText?: string;
+  source?: string;
+  nextFollowTime?: string;
+  ignoreDuplicateWarning?: boolean;
+}
