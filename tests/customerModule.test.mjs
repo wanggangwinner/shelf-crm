@@ -5,6 +5,7 @@ import {
   findCustomerDuplicates,
   listCustomerOwnershipHistory,
   listCustomers,
+  parseCustomerSignals,
   parseDemandPhrase,
   resetCustomerModuleState,
 } from '../dist/api/customers.js';
@@ -47,6 +48,17 @@ test('parses area and store type from a quick demand phrase', () => {
   });
 });
 
+test('parses area variants, store type, and mobile number from a demand phrase', () => {
+  assert.deepEqual(parseCustomerSignals('80平方米 超市李总 电话：15955555555 内蒙古'), {
+    demandText: '80平方米 超市李总 电话：15955555555 内蒙古',
+    storeArea: '80㎡',
+    storeType: '超市',
+    phone: '15955555555',
+  });
+
+  assert.equal(parseCustomerSignals('120平 仓库货架 13800000009').storeArea, '120㎡');
+});
+
 test('creates customer under the current team and records ownership history', () => {
   resetCustomerModuleState();
 
@@ -72,6 +84,21 @@ test('creates customer under the current team and records ownership history', ()
   assert.equal(history[0].toOwnerId, 'user_a');
 });
 
+test('creates customer with phone parsed from demand phrase when phone field is empty', () => {
+  resetCustomerModuleState();
+
+  const result = createCustomer(sessionA, {
+    name: '内蒙古超市项目',
+    city: '内蒙古',
+    demandText: '80平方米 超市李总 电话：15955555555 内蒙古',
+  });
+
+  assert.equal(result.blockedByDuplicates, false);
+  assert.equal(result.customer?.phone, '15955555555');
+  assert.equal(result.customer?.storeArea, '80㎡');
+  assert.equal(result.customer?.storeType, '超市');
+});
+
 test('detects duplicates by phone, wechat, name plus city, and similar address in same team', () => {
   resetCustomerModuleState();
 
@@ -94,6 +121,24 @@ test('detects duplicates by phone, wechat, name plus city, and similar address i
 
   assert.equal(matches.length, 1);
   assert.deepEqual(matches[0].reasons.sort(), ['name_city', 'phone', 'similar_address', 'wechat'].sort());
+});
+
+test('detects duplicate phone parsed from demand phrase', () => {
+  resetCustomerModuleState();
+
+  createCustomer(sessionA, {
+    name: '内蒙古超市',
+    phone: '15955555555',
+    city: '内蒙古',
+  });
+
+  const matches = findCustomerDuplicates(sessionA, {
+    name: '内蒙古超市二店',
+    demandText: '80平方米 超市李总 电话：15955555555 内蒙古',
+  });
+
+  assert.equal(matches.length, 1);
+  assert.deepEqual(matches[0].reasons, ['phone']);
 });
 
 test('blocks duplicate creation unless override flag is provided', () => {
