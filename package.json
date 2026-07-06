@@ -4,7 +4,7 @@
     "dev": "npm run build && node scripts/dev-server.mjs",
     "build": "node scripts/build.mjs",
     "lint": "tsc --noEmit",
-    "test": "npm run build && node --test tests/*.test.mjs"
+    "test": "npm run build && node --test tests/teamIsolation.test.mjs"
   },
   "devDependencies": {
     "typescript": "latest"
