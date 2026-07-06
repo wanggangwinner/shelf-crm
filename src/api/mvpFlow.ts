@@ -9,10 +9,18 @@ import type {
 import { getCustomer } from './customers.js';
 
 const STORAGE_KEY = 'shelf-crm-mvp-flow-state-v1';
+const ORDER_STORAGE_KEY = 'shelf-crm-order-flow-state-v1';
 
 interface MvpFlowState {
   tasks: SalesTask[];
   quotations: Quotation[];
+}
+
+interface OrderSnapshotState {
+  orders: Array<{
+    team_id: string;
+    receivableNodes: Array<{ plannedAmount: number; receivedAmount: number }>;
+  }>;
 }
 
 function emptyState(): MvpFlowState {
@@ -23,6 +31,12 @@ function loadState(): MvpFlowState {
   if (typeof localStorage === 'undefined') return emptyState();
   const raw = localStorage.getItem(STORAGE_KEY);
   return raw ? { ...emptyState(), ...JSON.parse(raw) } : emptyState();
+}
+
+function loadOrderSnapshot(): OrderSnapshotState {
+  if (typeof localStorage === 'undefined') return { orders: [] };
+  const raw = localStorage.getItem(ORDER_STORAGE_KEY);
+  return raw ? { orders: [], ...JSON.parse(raw) } : { orders: [] };
 }
 
 function saveState(state: MvpFlowState): void {
@@ -156,13 +170,15 @@ export function getMvpDashboard(session: SessionContext) {
   const state = loadState();
   const tasks = state.tasks.filter((task) => task.team_id === session.currentTeam.id);
   const quotations = state.quotations.filter((quotation) => quotation.team_id === session.currentTeam.id);
+  const orders = loadOrderSnapshot().orders.filter((order) => order.team_id === session.currentTeam.id);
+  const nodes = orders.flatMap((order) => order.receivableNodes);
   return {
     pendingTasks: tasks.filter((task) => task.status === '待处理').length,
     quotations: quotations.length,
     confirmedQuotations: quotations.filter((quotation) => quotation.status === '客户确认').length,
-    orders: 0,
-    receivableAmount: 0,
-    receivedAmount: 0,
+    orders: orders.length,
+    receivableAmount: money(nodes.reduce((total, node) => total + node.plannedAmount, 0)),
+    receivedAmount: money(nodes.reduce((total, node) => total + node.receivedAmount, 0)),
   };
 }
 
