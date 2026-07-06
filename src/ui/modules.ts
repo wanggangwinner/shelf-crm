@@ -1,12 +1,12 @@
 export const WEB_MODULES = [
   'Workbench',
   'Customers',
-  'Follow-ups',
   'Tasks',
   'Quotations',
   'Orders / Receivables',
   'Schemes / Files',
-  'Dashboard Drill-downs',
+  'Delivery / After-sales',
+  'Dashboards',
   'Team / Permissions',
   'System Settings',
 ] as const;
