@@ -13,6 +13,7 @@ import type {
 } from '../domain/models.js';
 
 const STORAGE_KEY = 'shelf-crm-foundation-state-v2';
+const SYSTEM_TEAM_ID = '00000000-0000-0000-0000-000000000000';
 
 interface FoundationState {
   user?: User;
@@ -53,14 +54,20 @@ function now(): string {
   return new Date().toISOString();
 }
 
-function createId(prefix: string): string {
-  return `${prefix}_${crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
+function createId(): string {
+  if (crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+
+  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (character) =>
+    (Number(character) ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (Number(character) / 4)))).toString(16),
+  );
 }
 
 function createWorkspaceRoles(team_id: string): Role[] {
   return [
     {
-      id: createId('role'),
+      id: createId(),
       team_id,
       code: 'owner',
       name: '老板/负责人',
@@ -68,7 +75,7 @@ function createWorkspaceRoles(team_id: string): Role[] {
       permissions: ['workspace:read', 'workspace:write', 'settings:read', 'settings:write'],
     },
     {
-      id: createId('role'),
+      id: createId(),
       team_id,
       code: 'sales',
       name: '销售',
@@ -76,7 +83,7 @@ function createWorkspaceRoles(team_id: string): Role[] {
       permissions: ['workspace:read'],
     },
     {
-      id: createId('role'),
+      id: createId(),
       team_id,
       code: 'admin',
       name: '管理员',
@@ -91,15 +98,15 @@ export function developmentLogin(): User {
 
   if (!state.user) {
     state.user = {
-      id: 'dev_user',
+      id: createId(),
       name: 'MVP-A Development User',
       isDevelopmentUser: true,
       createdAt: now(),
     };
 
     state.logs.push({
-      id: createId('log'),
-      team_id: 'system',
+      id: createId(),
+      team_id: SYSTEM_TEAM_ID,
       actorUserId: state.user.id,
       action: 'dev_login_created',
       targetType: 'user',
@@ -116,7 +123,7 @@ export function createWorkspace(kind: WorkspaceKind, roleCode: UserRoleCode): Se
   const state = loadState();
   const user = state.user ?? developmentLogin();
   const team: Team = {
-    id: createId('team'),
+    id: createId(),
     name: kind === 'personal' ? '我的货架客户工作台' : '货架销售团队工作台',
     kind,
     ownerUserId: user.id,
@@ -125,7 +132,7 @@ export function createWorkspace(kind: WorkspaceKind, roleCode: UserRoleCode): Se
   const roles = createWorkspaceRoles(team.id);
   const role = roles.find((candidate) => candidate.code === roleCode) ?? roles[0];
   const member: TeamMember = {
-    id: createId('member'),
+    id: createId(),
     team_id: team.id,
     userId: user.id,
     roleId: role.id,
@@ -133,7 +140,7 @@ export function createWorkspace(kind: WorkspaceKind, roleCode: UserRoleCode): Se
     joinedAt: now(),
   };
   const onboarding: OnboardingProgress = {
-    id: createId('onboard'),
+    id: createId(),
     team_id: team.id,
     userId: user.id,
     workspaceChosen: true,
@@ -151,7 +158,7 @@ export function createWorkspace(kind: WorkspaceKind, roleCode: UserRoleCode): Se
   state.onboarding.push(onboarding);
   state.currentTeamId = team.id;
   state.logs.push({
-    id: createId('log'),
+    id: createId(),
     team_id: team.id,
     actorUserId: user.id,
     action: 'workspace_created_with_defaults',

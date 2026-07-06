@@ -52,6 +52,7 @@ function renderLogin(root: HTMLElement): void {
   });
 }
 
+// Task 01 keeps onboarding intentionally compact; later tasks can split this into a true multi-step flow.
 function renderOnboarding(root: HTMLElement): void {
   root.innerHTML = `
     <div class="onboarding">

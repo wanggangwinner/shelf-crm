@@ -1,5 +1,6 @@
 -- PostgreSQL-friendly foundation schema draft for MVP-A Task 01.
 -- Future business tables must include team_id and use the authenticated session team for every query.
+-- The localStorage development adapter uses UUID-compatible placeholder IDs; production IDs must be database/backend generated UUIDs.
 
 create table users (
   id uuid primary key,

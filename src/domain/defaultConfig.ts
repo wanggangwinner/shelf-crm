@@ -84,9 +84,9 @@ export const DEFAULT_SHELF_CONFIG = {
   ],
 } as const;
 
-export function createWorkspaceConfig(team_id: string): WorkspaceConfig {
+export function createWorkspaceConfig(team_id: string, id = crypto.randomUUID()): WorkspaceConfig {
   return {
-    id: `cfg_${team_id}`,
+    id,
     team_id,
     customerStages: [...DEFAULT_SHELF_CONFIG.customerStages],
     customerSources: [...DEFAULT_SHELF_CONFIG.customerSources],
