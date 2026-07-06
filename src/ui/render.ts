@@ -5,11 +5,13 @@ import {
   parseCustomerSignals,
 } from '../api/customers.js';
 import { createWorkspace, developmentLogin, getSession, hasAnyWorkspace } from '../api/devAuth.js';
+import { createFollowUp, generateFollowUpAiDraft, listFollowUps } from '../api/followUps.js';
 import { DEFAULT_SHELF_CONFIG } from '../domain/defaultConfig.js';
 import type {
   CreateCustomerInput,
   Customer,
   CustomerDuplicateMatch,
+  FollowUpRecord,
   SessionContext,
   UserRoleCode,
   WorkspaceKind,
@@ -32,6 +34,7 @@ type ActiveModule = '工作台' | '客户管理';
 interface CustomerPageState {
   message?: string;
   error?: string;
+  followUpError?: string;
   form?: CreateCustomerInput;
   duplicates?: CustomerDuplicateMatch[];
   selectedCustomerId?: string;
@@ -154,13 +157,8 @@ function renderOnboarding(root: HTMLElement): void {
       button.parentElement?.querySelectorAll('button').forEach((sibling) => sibling.classList.remove('selected'));
       button.classList.add('selected');
 
-      if (group === 'kind') {
-        kind = button.dataset.value as WorkspaceKind;
-      }
-
-      if (group === 'role') {
-        role = button.dataset.value as UserRoleCode;
-      }
+      if (group === 'kind') kind = button.dataset.value as WorkspaceKind;
+      if (group === 'role') role = button.dataset.value as UserRoleCode;
     });
   });
 
@@ -232,31 +230,32 @@ function renderShell(
 
 function dashboardTemplate(session: SessionContext): string {
   const customers = listCustomers(session);
+  const followUpCount = customers.reduce((total, customer) => total + listFollowUps(session, customer.id).length, 0);
 
   return `
     <header class="page-header">
       <div>
         <p>MVP-A 基础版</p>
         <h1>今天工作台</h1>
-        <span>客户数据、重复检测和资料完整度规则已接入，下一步继续补跟进、任务、报价和回款链路。</span>
+        <span>客户录入、重复检测、资料完整度和客户跟进记录已经接入，下一步继续补任务提醒、报价和回款链路。</span>
       </div>
       <div class="user">👤 ${escapeHtml(session.user.name)}</div>
     </header>
     <section class="hero">
       <div>
         <span class="section-label">基础能力已就绪</span>
-        <h2>先把客户录入和去重做扎实</h2>
-        <p>客户不能只靠一个“李总/王总”保存为完整客户，系统会要求补充手机号、微信、地址或明确需求。</p>
+        <h2>客户资料和跟进记录开始形成闭环</h2>
+        <p>销售可以在客户详情里记录微信、电话、面谈内容；系统保留原文，并生成摘要、异议和下一步建议。</p>
       </div>
       <div class="hero-panel">
-        <strong>${customers.length}</strong>
-        <span>当前客户数</span>
+        <strong>${followUpCount}</strong>
+        <span>累计跟进记录</span>
       </div>
     </section>
     <section class="cards" aria-label="基础概览">
       <div><strong>10</strong><span>网页端主模块占位</span></div>
-      <div><strong>5</strong><span>移动端底部入口</span></div>
       <div><strong>${customers.length}</strong><span>客户管理数据</span></div>
+      <div><strong>${followUpCount}</strong><span>客户跟进记录</span></div>
     </section>
     <section class="placeholder-grid">
       ${WEB_MODULES.map(
@@ -283,7 +282,7 @@ function customerPageTemplate(session: SessionContext, pageState: CustomerPageSt
       <div>
         <p>客户管理</p>
         <h1>客户资料与快速录入</h1>
-        <span>支持需求短语解析、手机号提取、重复客户拦截和资料完整度判断。</span>
+        <span>支持需求短语解析、手机号提取、重复客户拦截、资料完整度判断和跟进记录。</span>
       </div>
       <div class="user">👤 ${escapeHtml(session.user.name)}</div>
     </header>
@@ -291,7 +290,7 @@ function customerPageTemplate(session: SessionContext, pageState: CustomerPageSt
     <section class="cards customer-kpis" aria-label="客户概览">
       <div><strong>${customers.length}</strong><span>当前客户数</span></div>
       <div><strong>${customers.filter((customer) => getCompletenessStatus(customer) === '待补充资料').length}</strong><span>待补充资料</span></div>
-      <div><strong>${customers.filter((customer) => customer.level === 'A' || customer.level === 'B').length}</strong><span>A/B 重点客户</span></div>
+      <div><strong>${customers.reduce((total, customer) => total + listFollowUps(session, customer.id).length, 0)}</strong><span>跟进记录</span></div>
     </section>
 
     <section class="customer-layout">
@@ -309,52 +308,22 @@ function customerPageTemplate(session: SessionContext, pageState: CustomerPageSt
         ${pageState.duplicates?.length ? duplicateWarningTemplate(pageState.duplicates) : ''}
 
         <form id="customer-form" class="customer-form">
-          <label>
-            客户/项目名称 *
-            <input name="name" value="${escapeHtml(form.name)}" placeholder="例如：临沂兰山便利店项目" required>
-          </label>
-          <label>
-            联系人
-            <input name="contactName" value="${escapeHtml(form.contactName)}" placeholder="例如：李总">
-          </label>
-          <label>
-            手机号
-            <input id="phone" name="phone" value="${escapeHtml(form.phone ?? parsedDemand.phone)}" placeholder="例如：15955555555">
-          </label>
-          <label>
-            微信号
-            <input name="wechat" value="${escapeHtml(form.wechat)}" placeholder="例如：客户微信号">
-          </label>
-          <label>
-            城市/区域
-            <input name="city" value="${escapeHtml(form.city)}" placeholder="例如：内蒙古 / 临沂兰山">
-          </label>
-          <label>
-            详细地址
-            <input name="address" value="${escapeHtml(form.address)}" placeholder="例如：兰山区人民广场附近">
-          </label>
-          <label class="full">
-            需求短语
-            <input id="demand-text" name="demandText" value="${escapeHtml(form.demandText)}" placeholder="例如：80平方米 超市李总 电话：15955555555 内蒙古">
-          </label>
+          <label>客户/项目名称 *<input name="name" value="${escapeHtml(form.name)}" placeholder="例如：临沂兰山便利店项目" required></label>
+          <label>联系人<input name="contactName" value="${escapeHtml(form.contactName)}" placeholder="例如：李总"></label>
+          <label>手机号<input id="phone" name="phone" value="${escapeHtml(form.phone ?? parsedDemand.phone)}" placeholder="例如：15955555555"></label>
+          <label>微信号<input name="wechat" value="${escapeHtml(form.wechat)}" placeholder="例如：客户微信号"></label>
+          <label>城市/区域<input name="city" value="${escapeHtml(form.city)}" placeholder="例如：内蒙古 / 临沂兰山"></label>
+          <label>详细地址<input name="address" value="${escapeHtml(form.address)}" placeholder="例如：兰山区人民广场附近"></label>
+          <label class="full">需求短语<input id="demand-text" name="demandText" value="${escapeHtml(form.demandText)}" placeholder="例如：80平方米 超市李总 电话：15955555555 内蒙古"></label>
           <div class="parse-preview">
             <span>识别面积：<strong id="parsed-area">${escapeHtml(parsedDemand.storeArea ?? '未识别')}</strong></span>
             <span>识别店型：<strong id="parsed-store-type">${escapeHtml(parsedDemand.storeType ?? '未识别')}</strong></span>
             <span>识别手机号：<strong id="parsed-phone">${escapeHtml(parsedDemand.phone ?? '未识别')}</strong></span>
             <button id="parse-demand" type="button">解析并填充</button>
           </div>
-          <label>
-            店铺类型
-            <input id="store-type" name="storeType" value="${escapeHtml(form.storeType ?? parsedDemand.storeType)}" placeholder="例如：超市">
-          </label>
-          <label>
-            面积
-            <input id="store-area" name="storeArea" value="${escapeHtml(form.storeArea ?? parsedDemand.storeArea)}" placeholder="例如：80㎡">
-          </label>
-          <label class="full">
-            客户来源
-            <input name="source" value="${escapeHtml(form.source)}" placeholder="例如：手动录入 / 客户转介绍 / 同行介绍">
-          </label>
+          <label>店铺类型<input id="store-type" name="storeType" value="${escapeHtml(form.storeType ?? parsedDemand.storeType)}" placeholder="例如：超市"></label>
+          <label>面积<input id="store-area" name="storeArea" value="${escapeHtml(form.storeArea ?? parsedDemand.storeArea)}" placeholder="例如：80㎡"></label>
+          <label class="full">客户来源<input name="source" value="${escapeHtml(form.source)}" placeholder="例如：手动录入 / 客户转介绍 / 同行介绍"></label>
           <div class="form-actions">
             <button type="submit" class="primary compact-primary">保存客户</button>
             ${pageState.duplicates?.length ? '<button id="ignore-duplicate-create" type="button" class="secondary">确认仍然创建</button>' : ''}
@@ -370,11 +339,11 @@ function customerPageTemplate(session: SessionContext, pageState: CustomerPageSt
           </div>
           <small>${customers.length} 条</small>
         </div>
-        ${customers.length ? customerListTemplate(customers, selectedCustomer?.id) : emptyCustomerTemplate()}
+        ${customers.length ? customerListTemplate(session, customers, selectedCustomer?.id) : emptyCustomerTemplate()}
       </article>
     </section>
 
-    ${selectedCustomer ? customerDetailTemplate(session, selectedCustomer) : ''}
+    ${selectedCustomer ? customerDetailTemplate(session, selectedCustomer, pageState) : ''}
   `;
 }
 
@@ -383,12 +352,7 @@ function duplicateWarningTemplate(duplicates: CustomerDuplicateMatch[]): string 
     <div class="notice warning">
       <strong>发现疑似重复客户，系统已暂时拦截创建。</strong>
       <ul>
-        ${duplicates.map((match) => `
-          <li>
-            ${escapeHtml(match.customer.name)}
-            <span>${match.reasons.map((reason) => duplicateReasonLabel(reason)).join('、')}</span>
-          </li>
-        `).join('')}
+        ${duplicates.map((match) => `<li>${escapeHtml(match.customer.name)}<span>${match.reasons.map((reason) => duplicateReasonLabel(reason)).join('、')}</span></li>`).join('')}
       </ul>
       <p>确认不是同一个客户时，再点击“确认仍然创建”。</p>
     </div>
@@ -406,7 +370,7 @@ function duplicateReasonLabel(reason: string): string {
   return labels[reason] ?? reason;
 }
 
-function customerListTemplate(customers: Customer[], selectedCustomerId?: string): string {
+function customerListTemplate(session: SessionContext, customers: Customer[], selectedCustomerId?: string): string {
   return `
     <div class="customer-table">
       ${customers.map((customer) => `
@@ -415,7 +379,7 @@ function customerListTemplate(customers: Customer[], selectedCustomerId?: string
           <span>${escapeHtml(customer.city || '未填写区域')}</span>
           <span>${escapeHtml(customer.storeArea || '未填面积')}</span>
           <em>${escapeHtml(customer.stage)}</em>
-          <b>${getCompletenessStatus(customer)}</b>
+          <b>${listFollowUps(session, customer.id).length} 次跟进</b>
         </button>
       `).join('')}
     </div>
@@ -423,25 +387,18 @@ function customerListTemplate(customers: Customer[], selectedCustomerId?: string
 }
 
 function emptyCustomerTemplate(): string {
-  return `
-    <div class="empty-state">
-      <strong>还没有客户</strong>
-      <p>先录入一个客户。注意：只有“李总/王总”这种名字不能保存为完整客户。</p>
-    </div>
-  `;
+  return `<div class="empty-state"><strong>还没有客户</strong><p>先录入一个客户。注意：只有“李总/王总”这种名字不能保存为完整客户。</p></div>`;
 }
 
-function customerDetailTemplate(session: SessionContext, customer: Customer): string {
+function customerDetailTemplate(session: SessionContext, customer: Customer, pageState: CustomerPageState): string {
   const history = listCustomerOwnershipHistory(session, customer.id);
+  const followUps = listFollowUps(session, customer.id);
   const completenessStatus = getCompletenessStatus(customer);
 
   return `
     <section class="customer-detail-card">
       <div class="section-title">
-        <div>
-          <span class="section-label">客户详情</span>
-          <h2>${escapeHtml(customer.name)}</h2>
-        </div>
+        <div><span class="section-label">客户详情</span><h2>${escapeHtml(customer.name)}</h2></div>
         <small>创建时间：${new Date(customer.createdAt).toLocaleString()}</small>
       </div>
 
@@ -463,6 +420,35 @@ function customerDetailTemplate(session: SessionContext, customer: Customer): st
         <div class="full"><span>需求描述</span><strong>${escapeHtml(customer.demandText || '未填写')}</strong></div>
       </div>
 
+      <div class="follow-up-panel">
+        <div class="section-title">
+          <div><span class="section-label">跟进记录</span><h2>新增跟进</h2></div>
+          <small>原始沟通内容会保留，系统只生成辅助摘要和下一步建议。</small>
+        </div>
+        ${pageState.followUpError ? `<div class="notice error">${escapeHtml(pageState.followUpError)}</div>` : ''}
+        <form id="follow-up-form" class="follow-up-form" data-customer-id="${customer.id}">
+          <label>跟进方式
+            <select name="method">
+              <option value="微信">微信</option>
+              <option value="电话">电话</option>
+              <option value="面谈">面谈</option>
+              <option value="其他">其他</option>
+            </select>
+          </label>
+          <label class="full">原始跟进内容
+            <textarea name="rawContent" rows="5" placeholder="粘贴微信聊天、电话记录或面谈纪要，例如：客户觉得报价有点贵，还要和别家对比，明天补现场照片。"></textarea>
+          </label>
+          <label class="full">手动摘要（可选）<input name="summary" placeholder="不填则由系统按原文生成简要摘要"></label>
+          <label class="full">下一步动作（可选）<input name="nextAction" placeholder="不填则由系统根据内容建议下一步"></label>
+          <button type="submit" class="primary compact-primary">保存跟进记录</button>
+        </form>
+      </div>
+
+      <div class="follow-up-list">
+        <h3>历史跟进</h3>
+        ${followUps.length ? followUps.map(followUpTemplate).join('') : '<p class="muted">暂无跟进记录</p>'}
+      </div>
+
       <div class="ownership-history">
         <h3>客户归属历史</h3>
         ${history.length ? history.map((record) => `
@@ -476,8 +462,25 @@ function customerDetailTemplate(session: SessionContext, customer: Customer): st
   `;
 }
 
+function followUpTemplate(followUp: FollowUpRecord): string {
+  return `
+    <article class="follow-up-item">
+      <div class="follow-up-head">
+        <strong>${escapeHtml(followUp.method)}跟进</strong>
+        <span>${new Date(followUp.createdAt).toLocaleString()}</span>
+      </div>
+      <p><b>摘要：</b>${escapeHtml(followUp.summary || '未生成摘要')}</p>
+      <p><b>下一步：</b>${escapeHtml(followUp.nextAction || '未填写')}</p>
+      ${followUp.objections.length ? `<p><b>异议：</b>${followUp.objections.map(escapeHtml).join('、')}</p>` : ''}
+      ${followUp.blockers.length ? `<p><b>阻碍：</b>${followUp.blockers.map(escapeHtml).join('、')}</p>` : ''}
+      <details><summary>查看原始沟通内容</summary><pre>${escapeHtml(followUp.rawContent)}</pre></details>
+    </article>
+  `;
+}
+
 function bindCustomerPage(root: HTMLElement, session: SessionContext): void {
   const form = root.querySelector<HTMLFormElement>('#customer-form');
+  const followUpForm = root.querySelector<HTMLFormElement>('#follow-up-form');
   const demandInput = root.querySelector<HTMLInputElement>('#demand-text');
   const storeTypeInput = root.querySelector<HTMLInputElement>('#store-type');
   const storeAreaInput = root.querySelector<HTMLInputElement>('#store-area');
@@ -492,17 +495,9 @@ function bindCustomerPage(root: HTMLElement, session: SessionContext): void {
   document.getElementById('parse-demand')?.addEventListener('click', () => {
     const parsed = parseCustomerSignals(demandInput?.value ?? '');
 
-    if (storeTypeInput && !storeTypeInput.value && parsed.storeType) {
-      storeTypeInput.value = parsed.storeType;
-    }
-
-    if (storeAreaInput && !storeAreaInput.value && parsed.storeArea) {
-      storeAreaInput.value = parsed.storeArea;
-    }
-
-    if (phoneInput && !phoneInput.value && parsed.phone) {
-      phoneInput.value = parsed.phone;
-    }
+    if (storeTypeInput && !storeTypeInput.value && parsed.storeType) storeTypeInput.value = parsed.storeType;
+    if (storeAreaInput && !storeAreaInput.value && parsed.storeArea) storeAreaInput.value = parsed.storeArea;
+    if (phoneInput && !phoneInput.value && parsed.phone) phoneInput.value = parsed.phone;
 
     const areaPreview = document.getElementById('parsed-area');
     const typePreview = document.getElementById('parsed-store-type');
@@ -513,83 +508,86 @@ function bindCustomerPage(root: HTMLElement, session: SessionContext): void {
     if (phonePreview) phonePreview.textContent = parsed.phone ?? '未识别';
   });
 
-  if (!form) {
-    return;
+  if (form) {
+    const collectInput = (): CreateCustomerInput => {
+      const formData = new FormData(form);
+
+      return {
+        name: String(formData.get('name') ?? ''),
+        contactName: String(formData.get('contactName') ?? ''),
+        phone: String(formData.get('phone') ?? ''),
+        wechat: String(formData.get('wechat') ?? ''),
+        city: String(formData.get('city') ?? ''),
+        address: String(formData.get('address') ?? ''),
+        demandText: String(formData.get('demandText') ?? ''),
+        storeType: String(formData.get('storeType') ?? ''),
+        storeArea: String(formData.get('storeArea') ?? ''),
+        source: String(formData.get('source') ?? ''),
+      };
+    };
+
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const input = collectInput();
+      const validationError = validateCustomerInput(input);
+
+      if (validationError) {
+        renderShell(root, session, '客户管理', { form: input, error: validationError });
+        return;
+      }
+
+      const result = createCustomer(session, input);
+
+      if (result.blockedByDuplicates) {
+        renderShell(root, session, '客户管理', { form: input, duplicates: result.duplicates });
+        return;
+      }
+
+      renderShell(root, session, '客户管理', { message: '客户已保存', selectedCustomerId: result.customer?.id });
+    });
+
+    document.getElementById('ignore-duplicate-create')?.addEventListener('click', () => {
+      const input = { ...collectInput(), ignoreDuplicateWarning: true };
+      const result = createCustomer(session, input);
+      renderShell(root, session, '客户管理', { message: '已忽略重复提醒并创建客户', selectedCustomerId: result.customer?.id });
+    });
   }
 
-  const collectInput = (): CreateCustomerInput => {
-    const formData = new FormData(form);
-
-    return {
-      name: String(formData.get('name') ?? ''),
-      contactName: String(formData.get('contactName') ?? ''),
-      phone: String(formData.get('phone') ?? ''),
-      wechat: String(formData.get('wechat') ?? ''),
-      city: String(formData.get('city') ?? ''),
-      address: String(formData.get('address') ?? ''),
-      demandText: String(formData.get('demandText') ?? ''),
-      storeType: String(formData.get('storeType') ?? ''),
-      storeArea: String(formData.get('storeArea') ?? ''),
-      source: String(formData.get('source') ?? ''),
-    };
-  };
-
-  form.addEventListener('submit', (event) => {
+  followUpForm?.addEventListener('submit', (event) => {
     event.preventDefault();
-
-    const input = collectInput();
-    const validationError = validateCustomerInput(input);
-
-    if (validationError) {
-      renderShell(root, session, '客户管理', { form: input, error: validationError });
-      return;
-    }
-
-    const result = createCustomer(session, input);
-
-    if (result.blockedByDuplicates) {
-      renderShell(root, session, '客户管理', { form: input, duplicates: result.duplicates });
-      return;
-    }
-
-    renderShell(root, session, '客户管理', { message: '客户已保存', selectedCustomerId: result.customer?.id });
-  });
-
-  document.getElementById('ignore-duplicate-create')?.addEventListener('click', () => {
-    const input = { ...collectInput(), ignoreDuplicateWarning: true };
-    const result = createCustomer(session, input);
-
-    renderShell(root, session, '客户管理', {
-      message: '已忽略重复提醒并创建客户',
-      selectedCustomerId: result.customer?.id,
+    const customerId = followUpForm.dataset.customerId ?? '';
+    const formData = new FormData(followUpForm);
+    const rawContent = String(formData.get('rawContent') ?? '');
+    const draft = generateFollowUpAiDraft(rawContent);
+    const result = createFollowUp(session, {
+      customerId,
+      method: String(formData.get('method') ?? '微信') as '微信' | '电话' | '面谈' | '其他',
+      rawContent,
+      summary: String(formData.get('summary') ?? '') || draft.summary,
+      nextAction: String(formData.get('nextAction') ?? '') || draft.nextAction,
     });
+
+    if (result.error) {
+      renderShell(root, session, '客户管理', { selectedCustomerId: customerId, followUpError: result.error });
+      return;
+    }
+
+    renderShell(root, session, '客户管理', { selectedCustomerId: customerId, message: '跟进记录已保存' });
   });
 }
 
 function validateCustomerInput(input: CreateCustomerInput): string | undefined {
   const name = input.name.trim();
 
-  if (!name) {
-    return '请先填写客户/项目名称。';
-  }
-
-  if (!hasUsableCustomerSignal(input)) {
-    return '客户信息不足，请至少填写手机号、微信、地址或明确需求。';
-  }
-
+  if (!name) return '请先填写客户/项目名称。';
+  if (!hasUsableCustomerSignal(input)) return '客户信息不足，请至少填写手机号、微信、地址或明确需求。';
   return undefined;
 }
 
 function hasUsableCustomerSignal(input: CreateCustomerInput): boolean {
   const parsed = parseCustomerSignals(input.demandText ?? '');
 
-  return Boolean(
-    input.phone?.trim() ||
-      parsed.phone ||
-      input.wechat?.trim() ||
-      input.address?.trim() ||
-      isClearDemand(input.demandText ?? ''),
-  );
+  return Boolean(input.phone?.trim() || parsed.phone || input.wechat?.trim() || input.address?.trim() || isClearDemand(input.demandText ?? ''));
 }
 
 function isClearDemand(demandText: string): boolean {
@@ -605,7 +603,5 @@ function isClearDemand(demandText: string): boolean {
 }
 
 function getCompletenessStatus(customer: Customer): '资料完整' | '待补充资料' {
-  return customer.phone || customer.wechat || customer.address || isClearDemand(customer.demandText)
-    ? '资料完整'
-    : '待补充资料';
+  return customer.phone || customer.wechat || customer.address || isClearDemand(customer.demandText) ? '资料完整' : '待补充资料';
 }
