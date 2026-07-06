@@ -147,11 +147,18 @@ label {
 }
 
 input {
+  width: 100%;
   padding: 14px 15px;
   border: 1px solid #d6e1f0;
   border-radius: 16px;
-  color: #64748b;
+  color: #334155;
   background: #f8fafc;
+}
+
+input:focus {
+  border-color: #2563eb;
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .primary {
@@ -308,6 +315,7 @@ nav {
   border: 1px solid transparent;
   border-radius: 14px;
   color: #dbeafe;
+  text-decoration: none;
 }
 
 .sidebar a.active,
@@ -404,7 +412,10 @@ nav {
 }
 
 .cards div,
-.placeholder-grid article {
+.placeholder-grid article,
+.customer-form-card,
+.customer-list-card,
+.customer-detail-card {
   border: 1px solid #e2eaf5;
   border-radius: 22px;
   background: #ffffff;
@@ -467,8 +478,316 @@ nav {
   line-height: 1.75;
 }
 
+.customer-kpis {
+  margin: 26px 0 18px;
+}
+
+.customer-layout {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) minmax(340px, 0.8fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.customer-form-card,
+.customer-list-card,
+.customer-detail-card {
+  padding: 24px;
+}
+
+.section-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.section-title h2 {
+  margin: 12px 0 0;
+  color: #172033;
+  font-size: 22px;
+}
+
+.section-title small {
+  max-width: 360px;
+  color: #64748b;
+  line-height: 1.7;
+  text-align: right;
+}
+
+.customer-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.customer-form label {
+  margin: 0;
+}
+
+.customer-form .full {
+  grid-column: 1 / -1;
+}
+
+.parse-preview {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 18px;
+  background: #eff6ff;
+}
+
+.parse-preview span {
+  color: #475569;
+  font-size: 14px;
+}
+
+.parse-preview strong {
+  color: #1d4ed8;
+}
+
+.parse-preview button,
+.secondary {
+  padding: 11px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  color: #1d4ed8;
+  background: #ffffff;
+  font-weight: 900;
+}
+
+.form-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 12px;
+  align-items: center;
+}
+
+.compact-primary {
+  width: auto;
+  min-width: 160px;
+  margin-top: 0;
+}
+
+.notice {
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  border-radius: 18px;
+  line-height: 1.7;
+}
+
+.notice.success {
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.notice.warning {
+  border: 1px solid #fde68a;
+  color: #854d0e;
+  background: #fffbeb;
+}
+
+.notice.error {
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  background: #fef2f2;
+}
+
+.notice.warning strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.notice.warning ul {
+  padding-left: 18px;
+  margin: 8px 0;
+}
+
+.notice.warning li span {
+  display: block;
+  color: #a16207;
+  font-size: 13px;
+}
+
+.customer-table {
+  display: grid;
+  gap: 10px;
+}
+
+.customer-row {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr 0.65fr auto auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid #e2eaf5;
+  border-radius: 18px;
+  color: inherit;
+  background: #f8fbff;
+  text-align: left;
+}
+
+.customer-row:hover,
+.customer-row.selected-row {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.customer-row strong {
+  color: #172033;
+}
+
+.customer-row span {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.customer-row em,
+.customer-row b {
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.customer-row em {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.customer-row b {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.empty-state {
+  padding: 28px;
+  border: 1px dashed #bfdbfe;
+  border-radius: 22px;
+  color: #64748b;
+  background: #f8fbff;
+  text-align: center;
+}
+
+.empty-state strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #172033;
+  font-size: 18px;
+}
+
+.customer-detail-card {
+  margin-top: 18px;
+}
+
+.status-card {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.status-card div {
+  padding: 18px;
+  border-radius: 20px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #1d4ed8, #0f766e);
+}
+
+.status-card .incomplete {
+  background: linear-gradient(135deg, #b45309, #dc2626);
+}
+
+.status-card .complete {
+  background: linear-gradient(135deg, #0f766e, #16a34a);
+}
+
+.status-card span,
+.detail-grid span {
+  display: block;
+  margin-bottom: 8px;
+  opacity: 0.86;
+  font-size: 13px;
+}
+
+.status-card strong {
+  font-size: 20px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.detail-grid div,
+.ownership-history div {
+  padding: 15px;
+  border: 1px solid #e2eaf5;
+  border-radius: 18px;
+  background: #f8fbff;
+}
+
+.detail-grid .full {
+  grid-column: 1 / -1;
+}
+
+.detail-grid span {
+  color: #64748b;
+}
+
+.detail-grid strong {
+  color: #172033;
+  line-height: 1.7;
+}
+
+.ownership-history {
+  margin-top: 22px;
+}
+
+.ownership-history h3 {
+  margin-bottom: 12px;
+  color: #172033;
+}
+
+.ownership-history div + div {
+  margin-top: 10px;
+}
+
+.ownership-history strong,
+.ownership-history span {
+  display: block;
+}
+
+.ownership-history span {
+  margin-top: 6px;
+  color: #64748b;
+  line-height: 1.7;
+}
+
 .bottom-nav {
   display: none;
+}
+
+@media (max-width: 1120px) {
+  .customer-layout,
+  .status-card,
+  .detail-grid,
+  .parse-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .customer-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
@@ -496,7 +815,8 @@ nav {
   .hero,
   .cards,
   .placeholder-grid,
-  .config-list {
+  .config-list,
+  .customer-form {
     grid-template-columns: 1fr;
   }
 
@@ -547,5 +867,14 @@ nav {
   .onboarding {
     align-items: start;
     padding: 18px 0;
+  }
+
+  .form-actions {
+    display: grid;
+  }
+
+  .compact-primary,
+  .secondary {
+    width: 100%;
   }
 }
