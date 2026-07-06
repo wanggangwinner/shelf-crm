@@ -61,9 +61,13 @@ test('creates order from confirmed quotation and records collection', () => {
   const orderResult = createOrderFromQuotation(session, { customerId: customer.id, quotationId: quotation.id, depositAmount: 500, finalPaymentAmount: 1500 });
   assert.equal(orderResult.error, undefined);
   assert.equal(listOrders(session).length, 1);
+  assert.equal(orderResult.tasks.length, 2);
+  assert.equal(listTasks(session).filter((task) => task.source === '订单生成' || task.source === '回款生成').length, 2);
   const order = orderResult.order;
   const node = order.receivableNodes[0];
   const collection = recordCollection(session, { orderId: order.id, nodeId: node.id, amount: 500, method: 'cash' });
   assert.equal(collection.error, undefined);
   assert.equal(collection.order.receivableNodes[0].status, '已收款');
+  const depositTask = listTasks(session).find((task) => task.title.includes('定金'));
+  assert.equal(depositTask.status, '已完成');
 });
