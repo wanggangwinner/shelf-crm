@@ -250,20 +250,53 @@ export interface Quotation {
   lineItems: QuotationLineItem[];
   feedback: string;
   createdAt: string;
+  updatedAt?: string;
+  copiedFromId?: string;
   confirmedAt?: string;
 }
 
 export interface CreateQuotationInput {
   customerId: string;
-  productName: string;
+  productName?: string;
   specification?: string;
-  quantity: number;
-  unitPrice: number;
+  quantity?: number;
+  unitPrice?: number;
   freightFee?: number;
   installationFee?: number;
   designFee?: number;
   discountAmount?: number;
   remark?: string;
+  lineItems?: Array<{
+    productName: string;
+    specification?: string;
+    quantity: number;
+    unitPrice: number;
+    remark?: string;
+  }>;
+}
+
+export interface FileAsset {
+  id: string;
+  team_id: string;
+  customerId: string;
+  targetType: 'customer' | 'order';
+  targetId: string;
+  fileName: string;
+  fileType: string;
+  size: number;
+  note: string;
+  createdAt: string;
+}
+
+export interface CustomerTimelineEvent {
+  id: string;
+  team_id: string;
+  customerId: string;
+  type: 'follow_up' | 'task' | 'quotation' | 'order' | 'payment' | 'file';
+  title: string;
+  detail: string;
+  occurredAt: string;
+  relatedId: string;
 }
 
 export type OrderStatus = '待收定金' | '生产/备货中' | '待尾款' | '已完成';

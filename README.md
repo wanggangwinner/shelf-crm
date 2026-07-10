@@ -89,6 +89,10 @@ Use this exact path for the first whole-system check:
 - Follow-up records with raw content, generated summary, objections/blockers, and next action.
 - Task reminders with manual creation, quotation task creation, order receivable task creation, and task completion.
 - Quotation management with lightweight structured line item, fee breakdown, version number, total amount, and confirmation state.
+- Customer business timeline combining follow-ups, tasks, quotations, orders, payments, and files in reverse chronological order.
+- Multi-line quotation creation, editable unconfirmed drafts at the service boundary, and one-click copied versions.
+- Form-level errors and duplicate-operation guards for quotations, order conversion, and collection.
+- Lightweight customer/order file metadata binding with strict `team_id` isolation.
 - Order/receivables management with confirmed quotation conversion, deposit/final payment nodes, payment records, and order status updates.
 - Workbench statistics for customers, follow-ups, tasks, quotations, orders, receivables, and received amount.
 - Tests covering team isolation, customer module, follow-ups, and MVP flow.
@@ -98,9 +102,9 @@ Use this exact path for the first whole-system check:
 - Data is stored in browser `localStorage`, not a real backend database.
 - Login is a development placeholder, not production authentication.
 - AI extraction is deterministic local logic, not connected to a live model API.
-- File/material upload, scheme drawing management, delivery/installation, after-sales, refunds/adjustments, public customer pool, and advanced dashboards are not yet implemented.
+- File content upload/storage, scheme drawing previews, delivery/installation, after-sales, refunds/adjustments, public customer pool, and advanced dashboards are not yet implemented. The current file feature stores metadata and business binding only.
 - Team permissions are foundation-level only; detailed role/data-scope/sensitive-field permissions are V1 work.
-- Quotation supports one lightweight line item per creation for now; multi-line quote editing and historical template copying are future work.
+- Quotation now supports multiple line items and version copying. The current page creates and copies versions; full inline editing UI and reusable product templates remain V1 work.
 - There is no production server-side audit log yet. MVP uses local state and module-level guardrails only.
 
 ## Clean local state / re-run onboarding
@@ -141,9 +145,8 @@ The `build`, `test`, and `dev` scripts use Node scripts instead of shell-only co
 The next development pass should focus on concentrated quality rather than adding random functions:
 
 1. Run the full local verification path on Windows and fix UI/runtime issues first.
-2. Add customer detail business timeline combining follow-ups, tasks, quotations, orders, and payments.
-3. Improve quotation creation to support multiple line items and quote editing/version copying.
-4. Add visible form-level error prompts for failed quotation/order/payment operations.
-5. Add lightweight file binding for customer/order materials.
-6. Move persistence from `localStorage` to a backend API and real database.
-7. Expand role permissions, operation logs, public pool, delivery/installation, and after-sales into V1.
+2. Run a concentrated cross-browser and mobile-layout bug-fix pass on the expanded customer timeline and quotation workflow.
+3. Add full inline quote editing UI, product templates, and printable/exportable quote documents.
+4. Replace metadata-only file binding with real upload storage, preview, download, and temporary-file cleanup.
+5. Move persistence from `localStorage` to a backend API and real database.
+6. Expand role permissions, operation logs, public pool, delivery/installation, and after-sales into V1.

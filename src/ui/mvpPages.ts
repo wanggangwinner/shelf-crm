@@ -2,6 +2,7 @@ import { listCustomers } from '../api/customers.js';
 import {
   completeTask,
   confirmQuotation,
+  copyQuotationVersion,
   createQuotation,
   createTask,
   getMvpDashboard,
@@ -13,6 +14,11 @@ import { createOrderFromQuotation, listOrders } from '../api/orderFlow.js';
 import type { Customer, Quotation, SalesOrder, SalesTask, SessionContext } from '../domain/models.js';
 
 export type MvpModuleName = '任务提醒' | '报价管理' | '订单/回款';
+let pageError = '';
+
+function errorNotice(): string {
+  return pageError ? `<div class="notice error" role="alert">${escapeHtml(pageError)}</div>` : '';
+}
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -34,7 +40,7 @@ function money(value: number): string {
 export function mvpPageTemplate(session: SessionContext, moduleName: MvpModuleName): string {
   if (moduleName === '任务提醒') return taskPageTemplate(session);
   if (moduleName === '报价管理') return quotationPageTemplate(session);
-  return orderPageTemplate(session);
+  return `${errorNotice()}${orderPageTemplate(session)}`;
 }
 
 function pageHeader(title: string, subtitle: string): string {
@@ -66,13 +72,17 @@ function quotationPageTemplate(session: SessionContext): string {
     ${pageHeader('报价管理', '轻量结构化报价：产品、数量、单价、运费、安装费、折扣和总价。')}
     <section class="cards customer-kpis"><div><strong>${dashboard.quotations}</strong><span>报价数量</span></div><div><strong>${dashboard.confirmedQuotations}</strong><span>客户确认报价</span></div><div><strong>${money(quotations.reduce((total, quotation) => total + quotation.totalAmount, 0))}</strong><span>报价总额</span></div></section>
     <section class="mvp-layout">
-      <article class="customer-form-card"><div class="section-title"><div><span class="section-label">新增报价</span><h2>创建报价单</h2></div></div>${customers.length ? `<form id="quotation-form" class="customer-form"><label>关联客户<select name="customerId">${customerOptions(customers)}</select></label><label>产品名称<input name="productName" placeholder="例如：便利店主架"></label><label>规格<input name="specification" placeholder="例如：900*450*2000"></label><label>数量<input name="quantity" type="number" min="0" step="1" value="1"></label><label>单价<input name="unitPrice" type="number" min="0" step="0.01"></label><label>运费<input name="freightFee" type="number" min="0" step="0.01"></label><label>安装费<input name="installationFee" type="number" min="0" step="0.01"></label><label>折扣<input name="discountAmount" type="number" min="0" step="0.01"></label><button type="submit" class="primary compact-primary">生成报价</button></form>` : '<div class="empty-state"><strong>还没有客户</strong><p>先创建客户，再报价。</p></div>'}</article>
+      <article class="customer-form-card"><div class="section-title"><div><span class="section-label">新增报价</span><h2>创建多行报价单</h2></div></div>${errorNotice()}${customers.length ? `<form id="quotation-form" class="customer-form"><label>关联客户<select name="customerId">${customerOptions(customers)}</select></label><div class="full quote-lines" id="quote-lines">${quotationLine(0)}${quotationLine(1)}</div><button type="button" id="add-quote-line" class="secondary">添加产品行</button><label>运费<input name="freightFee" type="number" min="0" step="0.01"></label><label>安装费<input name="installationFee" type="number" min="0" step="0.01"></label><label>设计/测量费<input name="designFee" type="number" min="0" step="0.01"></label><label>折扣<input name="discountAmount" type="number" min="0" step="0.01"></label><button type="submit" class="primary compact-primary">生成报价</button></form>` : '<div class="empty-state"><strong>还没有客户</strong><p>先创建客户，再报价。</p></div>'}</article>
       <article class="customer-list-card"><div class="section-title"><div><span class="section-label">报价列表</span><h2>历史报价</h2></div></div>${quotations.length ? `<div class="mvp-list">${quotations.map(quotationItem).join('')}</div>` : '<div class="empty-state"><strong>暂无报价</strong><p>创建报价后会自动生成同日反馈确认任务。</p></div>'}</article>
     </section>`;
 }
 
+function quotationLine(index: number): string {
+  return `<fieldset class="quote-line" data-quote-line><legend>产品 ${index + 1}</legend><input name="productName" placeholder="产品名称"><input name="specification" placeholder="规格"><input name="quantity" type="number" min="0" step="1" value="1" aria-label="数量"><input name="unitPrice" type="number" min="0" step="0.01" placeholder="单价" aria-label="单价"><button type="button" class="secondary" data-remove-line>删除</button></fieldset>`;
+}
+
 function quotationItem(quotation: Quotation): string {
-  return `<div class="mvp-item"><div><strong>报价 V${quotation.version} · ${money(quotation.totalAmount)}</strong><span>${quotation.lineItems.map((item) => item.productName).join('、')} · ${quotation.status}</span></div><em>${escapeHtml(quotation.status)}</em>${quotation.status !== '客户确认' ? `<button type="button" data-confirm-quotation="${quotation.id}" class="secondary">客户确认</button>` : ''}</div>`;
+  return `<div class="mvp-item"><div><strong>报价 V${quotation.version} · ${money(quotation.totalAmount)}</strong><span>${quotation.lineItems.map((item) => item.productName).join('、')} · ${quotation.status}</span></div><em>${escapeHtml(quotation.status)}</em><button type="button" data-copy-quotation="${quotation.id}" class="secondary">复制新版本</button>${quotation.status !== '客户确认' ? `<button type="button" data-confirm-quotation="${quotation.id}" class="secondary">客户确认</button>` : ''}</div>`;
 }
 
 function orderPageTemplate(session: SessionContext): string {
@@ -94,6 +104,14 @@ function orderItem(order: SalesOrder): string {
 }
 
 export function bindMvpPage(root: HTMLElement, session: SessionContext, rerender: (moduleName: MvpModuleName) => void): void {
+  root.querySelector<HTMLButtonElement>('#add-quote-line')?.addEventListener('click', () => {
+    const container = root.querySelector<HTMLElement>('#quote-lines');
+    if (container) container.insertAdjacentHTML('beforeend', quotationLine(container.querySelectorAll('[data-quote-line]').length));
+  });
+  root.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement;
+    if (target.matches('[data-remove-line]') && root.querySelectorAll('[data-quote-line]').length > 1) target.closest('[data-quote-line]')?.remove();
+  });
   root.querySelector<HTMLFormElement>('#task-form')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget as HTMLFormElement);
@@ -103,21 +121,27 @@ export function bindMvpPage(root: HTMLElement, session: SessionContext, rerender
   root.querySelectorAll<HTMLButtonElement>('[data-complete-task]').forEach((button) => button.addEventListener('click', () => { completeTask(session, button.dataset.completeTask ?? ''); rerender('任务提醒'); }));
   root.querySelector<HTMLFormElement>('#quotation-form')?.addEventListener('submit', (event) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget as HTMLFormElement);
-    createQuotation(session, { customerId: String(form.get('customerId') ?? ''), productName: String(form.get('productName') ?? ''), specification: String(form.get('specification') ?? ''), quantity: Number(form.get('quantity') ?? 0), unitPrice: Number(form.get('unitPrice') ?? 0), freightFee: Number(form.get('freightFee') ?? 0), installationFee: Number(form.get('installationFee') ?? 0), discountAmount: Number(form.get('discountAmount') ?? 0) });
+    const element = event.currentTarget as HTMLFormElement;
+    const form = new FormData(element);
+    const lineItems = [...element.querySelectorAll<HTMLElement>('[data-quote-line]')].map((line) => ({ productName: line.querySelector<HTMLInputElement>('[name="productName"]')?.value ?? '', specification: line.querySelector<HTMLInputElement>('[name="specification"]')?.value ?? '', quantity: Number(line.querySelector<HTMLInputElement>('[name="quantity"]')?.value ?? 0), unitPrice: Number(line.querySelector<HTMLInputElement>('[name="unitPrice"]')?.value ?? 0) })).filter((line) => line.productName || line.unitPrice);
+    const result = createQuotation(session, { customerId: String(form.get('customerId') ?? ''), lineItems, freightFee: Number(form.get('freightFee') ?? 0), installationFee: Number(form.get('installationFee') ?? 0), designFee: Number(form.get('designFee') ?? 0), discountAmount: Number(form.get('discountAmount') ?? 0) });
+    pageError = result.error ?? '';
     rerender('报价管理');
   });
+  root.querySelectorAll<HTMLButtonElement>('[data-copy-quotation]').forEach((button) => button.addEventListener('click', () => { const result = copyQuotationVersion(session, button.dataset.copyQuotation ?? ''); pageError = result.error ?? ''; rerender('报价管理'); }));
   root.querySelectorAll<HTMLButtonElement>('[data-confirm-quotation]').forEach((button) => button.addEventListener('click', () => { confirmQuotation(session, button.dataset.confirmQuotation ?? ''); rerender('报价管理'); }));
   root.querySelector<HTMLFormElement>('#order-form')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget as HTMLFormElement);
-    createOrderFromQuotation(session, { customerId: String(form.get('customerId') ?? ''), quotationId: String(form.get('quotationId') ?? ''), depositAmount: Number(form.get('depositAmount') ?? 0), finalPaymentAmount: Number(form.get('finalPaymentAmount') ?? 0) });
+    const result = createOrderFromQuotation(session, { customerId: String(form.get('customerId') ?? ''), quotationId: String(form.get('quotationId') ?? ''), depositAmount: Number(form.get('depositAmount') ?? 0), finalPaymentAmount: Number(form.get('finalPaymentAmount') ?? 0) });
+    pageError = result.error ?? '';
     rerender('订单/回款');
   });
   root.querySelectorAll<HTMLFormElement>('.collection-form').forEach((formElement) => formElement.addEventListener('submit', (event) => {
     event.preventDefault();
     const form = new FormData(formElement);
-    recordCollection(session, { orderId: formElement.dataset.orderId ?? '', nodeId: formElement.dataset.nodeId ?? '', amount: Number(form.get('amount') ?? 0), method: '手动记录' });
+    const result = recordCollection(session, { orderId: formElement.dataset.orderId ?? '', nodeId: formElement.dataset.nodeId ?? '', amount: Number(form.get('amount') ?? 0), method: '手动记录' });
+    pageError = result.error ?? '';
     rerender('订单/回款');
   }));
 }

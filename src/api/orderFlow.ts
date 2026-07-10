@@ -25,6 +25,7 @@ export function createOrderFromQuotation(session: SessionContext, input: CreateO
   const quotation = listQuotations(session).find((item) => item.id === input.quotationId && item.customerId === input.customerId);
   if (!quotation) return { error: '报价不存在或不属于当前客户。' };
   if (quotation.status !== '客户确认') return { error: '报价需要先标记为客户确认，才能转订单。' };
+  if (loadState().orders.some((order) => order.team_id === session.currentTeam.id && order.quotationId === input.quotationId)) return { error: '该报价已经生成订单，请勿重复操作。' };
   const depositAmount = money(input.depositAmount);
   const finalPaymentAmount = money(input.finalPaymentAmount);
   if (depositAmount + finalPaymentAmount <= 0) return { error: '请填写定金或尾款金额。' };

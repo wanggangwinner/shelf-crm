@@ -19,6 +19,7 @@ export function recordCollection(session: SessionContext, input: CreatePaymentIn
   if (!node) return { error: '收款节点不存在。' };
   const amount = money(input.amount);
   if (amount <= 0) return { error: '收款金额必须大于 0。' };
+  if (amount > money(node.plannedAmount - node.receivedAmount)) return { error: '收款金额不能超过该节点剩余应收金额。' };
   const record: PaymentRecord = { id: createId(), nodeId: node.id, amount, paidAt: now(), method: input.method?.trim() || '未填写', note: input.note?.trim() ?? '' };
   node.receivedAmount = money(node.receivedAmount + amount);
   node.status = node.receivedAmount >= node.plannedAmount ? '已收款' : '部分收款';

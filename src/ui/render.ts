@@ -6,6 +6,8 @@ import {
 } from '../api/customers.js';
 import { createWorkspace, developmentLogin, getSession, hasAnyWorkspace } from '../api/devAuth.js';
 import { createFollowUp, generateFollowUpAiDraft, listFollowUps } from '../api/followUps.js';
+import { bindFileAsset, listFileAssets } from '../api/fileAssets.js';
+import { listCustomerTimeline } from '../api/customerTimeline.js';
 import { getMvpDashboard } from '../api/mvpFlow.js';
 import { DEFAULT_SHELF_CONFIG } from '../domain/defaultConfig.js';
 import type {
@@ -270,6 +272,8 @@ function emptyCustomerTemplate(): string {
 function customerDetailTemplate(session: SessionContext, customer: Customer, pageState: CustomerPageState): string {
   const history = listCustomerOwnershipHistory(session, customer.id);
   const followUps = listFollowUps(session, customer.id);
+  const timeline = listCustomerTimeline(session, customer.id);
+  const files = listFileAssets(session, customer.id);
   const completenessStatus = getCompletenessStatus(customer);
 
   return `
@@ -279,6 +283,8 @@ function customerDetailTemplate(session: SessionContext, customer: Customer, pag
       <div class="detail-grid"><div><span>联系人</span><strong>${escapeHtml(customer.contactName || '未填写')}</strong></div><div><span>手机号</span><strong>${escapeHtml(customer.phone || '未填写')}</strong></div><div><span>微信</span><strong>${escapeHtml(customer.wechat || '未填写')}</strong></div><div><span>城市/区域</span><strong>${escapeHtml(customer.city || '未填写')}</strong></div><div><span>详细地址</span><strong>${escapeHtml(customer.address || '未填写')}</strong></div><div><span>客户来源</span><strong>${escapeHtml(customer.source || '未填写')}</strong></div><div class="full"><span>需求描述</span><strong>${escapeHtml(customer.demandText || '未填写')}</strong></div></div>
       <div class="follow-up-panel"><div class="section-title"><div><span class="section-label">跟进记录</span><h2>新增跟进</h2></div><small>原始内容保留，系统生成辅助摘要和下一步建议。</small></div>${pageState.followUpError ? `<div class="notice error">${escapeHtml(pageState.followUpError)}</div>` : ''}<form id="follow-up-form" class="follow-up-form" data-customer-id="${customer.id}"><label>跟进方式<select name="method"><option value="微信">微信</option><option value="电话">电话</option><option value="面谈">面谈</option><option value="其他">其他</option></select></label><label class="full">原始跟进内容<textarea name="rawContent" rows="5" placeholder="粘贴微信聊天、电话记录或面谈纪要"></textarea></label><label class="full">手动摘要（可选）<input name="summary" placeholder="不填则由系统生成摘要"></label><label class="full">下一步动作（可选）<input name="nextAction" placeholder="不填则由系统建议下一步"></label><button type="submit" class="primary compact-primary">保存跟进记录</button></form></div>
       <div class="follow-up-list"><h3>历史跟进</h3>${followUps.length ? followUps.map(followUpTemplate).join('') : '<p class="muted">暂无跟进记录</p>'}</div>
+      <div class="follow-up-panel"><div class="section-title"><div><span class="section-label">资料文件</span><h2>轻量文件绑定</h2></div><small>本地 MVP 仅保存文件元数据和业务关联，不上传文件内容。</small></div><form id="file-binding-form" class="follow-up-form" data-customer-id="${customer.id}"><label class="full">选择文件<input name="file" type="file"></label><label class="full">备注<input name="note" placeholder="例如：现场照片、尺寸图、合同扫描件"></label><button type="submit" class="primary compact-primary">绑定文件</button></form>${files.length ? `<div class="mvp-list">${files.map((file) => `<div class="mvp-item"><div><strong>${escapeHtml(file.fileName)}</strong><span>${escapeHtml(file.note || file.fileType)}</span></div></div>`).join('')}</div>` : '<p class="muted">暂无绑定文件</p>'}</div>
+      <div class="follow-up-list"><h3>业务时间线</h3>${timeline.length ? timeline.map((event) => `<article class="follow-up-item"><div class="follow-up-head"><strong>${escapeHtml(event.title)}</strong><span>${new Date(event.occurredAt).toLocaleString()}</span></div><p>${escapeHtml(event.detail)}</p></article>`).join('') : '<p class="muted">暂无业务事件</p>'}</div>
       <div class="ownership-history"><h3>客户归属历史</h3>${history.length ? history.map((record) => `<div><strong>${record.changeType === 'created' ? '创建客户' : escapeHtml(record.changeType)}</strong><span>${escapeHtml(record.reason)} · ${new Date(record.operatedAt).toLocaleString()}</span></div>`).join('') : '<p>暂无归属记录</p>'}</div>
     </section>
   `;
@@ -291,6 +297,7 @@ function followUpTemplate(followUp: FollowUpRecord): string {
 function bindCustomerPage(root: HTMLElement, session: SessionContext): void {
   const form = root.querySelector<HTMLFormElement>('#customer-form');
   const followUpForm = root.querySelector<HTMLFormElement>('#follow-up-form');
+  const fileBindingForm = root.querySelector<HTMLFormElement>('#file-binding-form');
   const demandInput = root.querySelector<HTMLInputElement>('#demand-text');
   const storeTypeInput = root.querySelector<HTMLInputElement>('#store-type');
   const storeAreaInput = root.querySelector<HTMLInputElement>('#store-area');
@@ -340,6 +347,15 @@ function bindCustomerPage(root: HTMLElement, session: SessionContext): void {
     const result = createFollowUp(session, { customerId, method: String(formData.get('method') ?? '微信') as FollowUpMethod, rawContent, summary: String(formData.get('summary') ?? '') || draft.summary, nextAction: String(formData.get('nextAction') ?? '') || draft.nextAction });
     if (result.error) { renderShell(root, session, '客户管理', { selectedCustomerId: customerId, followUpError: result.error }); return; }
     renderShell(root, session, '客户管理', { selectedCustomerId: customerId, message: '跟进记录已保存' });
+  });
+  fileBindingForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const customerId = fileBindingForm.dataset.customerId ?? '';
+    const data = new FormData(fileBindingForm);
+    const file = data.get('file');
+    const result = file instanceof File ? bindFileAsset(session, { customerId, targetType: 'customer', targetId: customerId, fileName: file.name, fileType: file.type, size: file.size, note: String(data.get('note') ?? '') }) : { error: '请选择文件。' };
+    if (result.error) { renderShell(root, session, '客户管理', { selectedCustomerId: customerId, followUpError: result.error }); return; }
+    renderShell(root, session, '客户管理', { selectedCustomerId: customerId, message: '文件已绑定到客户。' });
   });
 }
 

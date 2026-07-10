@@ -599,6 +599,11 @@ nav {
   background: #fef2f2;
 }
 
+.quote-lines { display: grid; gap: 12px; }
+.quote-line { display: grid; grid-template-columns: 1.5fr 1fr .65fr .8fr auto; gap: 8px; border: 1px solid #dbe3ea; border-radius: 12px; padding: 12px; }
+.quote-line legend { padding: 0 6px; color: #52606d; font-weight: 700; }
+@media (max-width: 760px) { .quote-line { grid-template-columns: 1fr; } }
+
 .notice.warning strong {
   display: block;
   margin-bottom: 8px;
