@@ -1,5 +1,7 @@
 # shelf-crm / 货架客户 CRM
 
+The authoritative product scope, domain relationships, state machines, permissions, financial rules, and acceptance criteria live in [`docs/PRODUCT_DEVELOPMENT_MANUAL.md`](docs/PRODUCT_DEVELOPMENT_MANUAL.md). This README describes the current implementation state only.
+
 MVP-A foundation for a shelf-sales-specific CRM: customer management, follow-up records, AI suggestions, task reminders, quotations, orders, receivables, and lightweight mobile entry.
 
 ## MVP-A current delivery status

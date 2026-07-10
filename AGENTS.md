@@ -1,5 +1,11 @@
 # AGENTS.md
 
+## Authoritative product manual
+
+Product scope, domain relationships, state machines, permissions, financial rules, AI confirmation, dashboard metrics, mobile boundaries, and acceptance criteria are defined in `docs/PRODUCT_DEVELOPMENT_MANUAL.md`.
+
+Read that manual before changing product behavior. This file provides engineering guardrails and historical MVP-A context; if a product rule here conflicts with the manual, the manual wins.
+
 ## Project identity
 
 This repository is for a shelf-sales-specific CRM system named **货架客户 CRM**.
