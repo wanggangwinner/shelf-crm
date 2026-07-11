@@ -8,6 +8,8 @@ import {
   getMvpDashboard,
   listQuotations,
   listTasks,
+  sendQuotation,
+  voidQuotation,
 } from '../api/mvpFlow.js';
 import { recordCollection } from '../api/collectionFlow.js';
 import { createOrderFromQuotation, listOrders } from '../api/orderFlow.js';
@@ -82,7 +84,10 @@ function quotationLine(index: number): string {
 }
 
 function quotationItem(quotation: Quotation): string {
-  return `<div class="mvp-item"><div><strong>报价 V${quotation.version} · ${money(quotation.totalAmount)}</strong><span>${quotation.lineItems.map((item) => item.productName).join('、')} · ${quotation.status}</span></div><em>${escapeHtml(quotation.status)}</em><button type="button" data-copy-quotation="${quotation.id}" class="secondary">复制新版本</button>${quotation.status !== '客户确认' ? `<button type="button" data-confirm-quotation="${quotation.id}" class="secondary">客户确认</button>` : ''}</div>`;
+  const send = quotation.status === '草稿' ? `<button type="button" data-send-quotation="${quotation.id}" class="secondary">发送报价</button>` : '';
+  const confirm = quotation.status === '已发送' ? `<button type="button" data-confirm-quotation="${quotation.id}" class="secondary">客户确认</button>` : '';
+  const voidButton = quotation.status === '草稿' || quotation.status === '已发送' ? `<button type="button" data-void-quotation="${quotation.id}" class="secondary">作废</button>` : '';
+  return `<div class="mvp-item"><div><strong>报价 V${quotation.version} · ${money(quotation.totalAmount)}</strong><span>${quotation.lineItems.map((item) => item.productName).join('、')} · ${quotation.status}</span></div><em>${escapeHtml(quotation.status)}</em><button type="button" data-copy-quotation="${quotation.id}" class="secondary">复制新版本</button>${send}${confirm}${voidButton}</div>`;
 }
 
 function orderPageTemplate(session: SessionContext): string {
@@ -129,7 +134,9 @@ export function bindMvpPage(root: HTMLElement, session: SessionContext, rerender
     rerender('报价管理');
   });
   root.querySelectorAll<HTMLButtonElement>('[data-copy-quotation]').forEach((button) => button.addEventListener('click', () => { const result = copyQuotationVersion(session, button.dataset.copyQuotation ?? ''); pageError = result.error ?? ''; rerender('报价管理'); }));
-  root.querySelectorAll<HTMLButtonElement>('[data-confirm-quotation]').forEach((button) => button.addEventListener('click', () => { confirmQuotation(session, button.dataset.confirmQuotation ?? ''); rerender('报价管理'); }));
+  root.querySelectorAll<HTMLButtonElement>('[data-send-quotation]').forEach((button) => button.addEventListener('click', () => { const result = sendQuotation(session, button.dataset.sendQuotation ?? ''); pageError = result.error ?? ''; rerender('报价管理'); }));
+  root.querySelectorAll<HTMLButtonElement>('[data-confirm-quotation]').forEach((button) => button.addEventListener('click', () => { const result = confirmQuotation(session, button.dataset.confirmQuotation ?? ''); pageError = result.error ?? ''; rerender('报价管理'); }));
+  root.querySelectorAll<HTMLButtonElement>('[data-void-quotation]').forEach((button) => button.addEventListener('click', () => { const result = voidQuotation(session, button.dataset.voidQuotation ?? '', '用户作废'); pageError = result.error ?? ''; rerender('报价管理'); }));
   root.querySelector<HTMLFormElement>('#order-form')?.addEventListener('submit', (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget as HTMLFormElement);

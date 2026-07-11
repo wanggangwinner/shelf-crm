@@ -94,6 +94,7 @@ Use this exact path for the first whole-system check:
 - Quotation management with lightweight structured line item, fee breakdown, version number, total amount, and confirmation state.
 - Customer business timeline combining follow-ups, tasks, quotations, orders, payments, and files in reverse chronological order.
 - Multi-line quotation creation, editable unconfirmed drafts at the service boundary, and one-click copied versions.
+- Quotation sets with explicit draft, sent, confirmed, replaced, converted, expired, and void lifecycle states.
 - Form-level errors and duplicate-operation guards for quotations, order conversion, and collection.
 - Lightweight customer/order file metadata binding with strict `team_id` isolation.
 - Order/receivables management with confirmed quotation conversion, deposit/final payment nodes, payment records, and order status updates.

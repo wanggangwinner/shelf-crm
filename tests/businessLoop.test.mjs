@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCustomer, resetCustomerModuleState } from '../dist/api/customers.js';
 import { createFollowUp, resetFollowUpModuleState } from '../dist/api/followUps.js';
-import { createQuotation, copyQuotationVersion, updateQuotationDraft, confirmQuotation, listQuotations, resetMvpFlowState } from '../dist/api/mvpFlow.js';
+import { createQuotation, copyQuotationVersion, updateQuotationDraft, sendQuotation, confirmQuotation, listQuotations, resetMvpFlowState } from '../dist/api/mvpFlow.js';
 import { createOrderFromQuotation, resetOrderFlowState } from '../dist/api/orderFlow.js';
 import { recordCollection } from '../dist/api/collectionFlow.js';
 import { bindFileAsset, listFileAssets, resetFileAssetState } from '../dist/api/fileAssets.js';
@@ -35,13 +35,13 @@ test('creates a multi-line quotation and copies an editable next version', () =>
   assert.equal(copied.quotation.version, 2); assert.equal(copied.quotation.copiedFromId, created.quotation.id);
   const edited = updateQuotationDraft(session, copied.quotation.id, { lineItems: [{ productName: 'Main shelf', quantity: 3, unitPrice: 900 }], freightFee: 0 });
   assert.equal(edited.quotation.totalAmount, 2600);
-  confirmQuotation(session, copied.quotation.id);
-  assert.equal(updateQuotationDraft(session, copied.quotation.id, { freightFee: 10 }).error, '客户确认的报价不能直接修改，请复制为新版本。');
+  sendQuotation(session, copied.quotation.id); confirmQuotation(session, copied.quotation.id);
+  assert.equal(updateQuotationDraft(session, copied.quotation.id, { freightFee: 10 }).error, '只有草稿报价可以修改，请复制为新版本。');
 });
 
 test('prevents duplicate orders and over-collection', () => {
   resetAll(); const c = customer();
-  const q = createQuotation(session, { customerId: c.id, productName: 'Shelf', quantity: 1, unitPrice: 1000 }).quotation; confirmQuotation(session, q.id);
+  const q = createQuotation(session, { customerId: c.id, productName: 'Shelf', quantity: 1, unitPrice: 1000 }).quotation; sendQuotation(session, q.id); confirmQuotation(session, q.id);
   const first = createOrderFromQuotation(session, { customerId: c.id, quotationId: q.id, depositAmount: 300, finalPaymentAmount: 700 });
   assert.equal(createOrderFromQuotation(session, { customerId: c.id, quotationId: q.id, depositAmount: 300, finalPaymentAmount: 700 }).error, '该报价已经生成订单，请勿重复操作。');
   const node = first.order.receivableNodes[0];
@@ -52,6 +52,7 @@ test('binds files and aggregates a team-isolated customer timeline', () => {
   resetAll(); const c = customer();
   createFollowUp(session, { customerId: c.id, method: '微信', rawContent: 'Customer asked for a revised quote.' });
   const q = createQuotation(session, { customerId: c.id, productName: 'Shelf', quantity: 1, unitPrice: 1000 }).quotation;
+  sendQuotation(session, q.id);
   const file = bindFileAsset(session, { customerId: c.id, targetType: 'customer', targetId: c.id, fileName: 'site-photo.jpg', fileType: 'image/jpeg', size: 1234, note: 'Site photo' });
   assert.equal(file.error, undefined); assert.equal(listFileAssets(session, c.id).length, 1); assert.equal(listFileAssets(otherSession, c.id).length, 0);
   const timeline = listCustomerTimeline(session, c.id);

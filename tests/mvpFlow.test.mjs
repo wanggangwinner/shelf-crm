@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCustomer, resetCustomerModuleState } from '../dist/api/customers.js';
-import { createTask, completeTask, createQuotation, confirmQuotation, listTasks, listQuotations, resetMvpFlowState } from '../dist/api/mvpFlow.js';
+import { createTask, completeTask, createQuotation, confirmQuotation, sendQuotation, listTasks, listQuotations, resetMvpFlowState } from '../dist/api/mvpFlow.js';
 import { createOrderFromQuotation, listOrders, resetOrderFlowState } from '../dist/api/orderFlow.js';
 import { recordCollection } from '../dist/api/collectionFlow.js';
 
@@ -48,6 +48,8 @@ test('creates and confirms a quotation with follow-up task', () => {
   const result = createQuotation(session, { customerId: customer.id, productName: 'main shelf', quantity: 2, unitPrice: 1000, freightFee: 200 });
   assert.equal(result.error, undefined);
   assert.equal(result.quotation.totalAmount, 2200);
+  assert.equal(listTasks(session).length, 0);
+  sendQuotation(session, result.quotation.id);
   assert.equal(listTasks(session).length, 1);
   confirmQuotation(session, result.quotation.id);
   assert.equal(listQuotations(session)[0].status, '客户确认');
@@ -57,7 +59,7 @@ test('creates order from confirmed quotation and records collection', () => {
   resetAll();
   const customer = makeCustomer();
   const quotation = createQuotation(session, { customerId: customer.id, productName: 'main shelf', quantity: 2, unitPrice: 1000 }).quotation;
-  confirmQuotation(session, quotation.id);
+  sendQuotation(session, quotation.id); confirmQuotation(session, quotation.id);
   const orderResult = createOrderFromQuotation(session, { customerId: customer.id, quotationId: quotation.id, depositAmount: 500, finalPaymentAmount: 1500 });
   assert.equal(orderResult.error, undefined);
   assert.equal(listOrders(session).length, 1);

@@ -1,6 +1,6 @@
 import type { CreateOrderInput, ReceivableNode, SalesOrder, SalesTask, SessionContext } from '../domain/models.js';
 import { getCustomer } from './customers.js';
-import { createTask, listQuotations } from './mvpFlow.js';
+import { createTask, listQuotations, markQuotationConverted } from './mvpFlow.js';
 
 const STORAGE_KEY = 'shelf-crm-order-flow-state-v1';
 
@@ -24,8 +24,8 @@ export function createOrderFromQuotation(session: SessionContext, input: CreateO
   if (!getCustomer(session, input.customerId)) return { error: '客户不存在或不属于当前团队。' };
   const quotation = listQuotations(session).find((item) => item.id === input.quotationId && item.customerId === input.customerId);
   if (!quotation) return { error: '报价不存在或不属于当前客户。' };
-  if (quotation.status !== '客户确认') return { error: '报价需要先标记为客户确认，才能转订单。' };
   if (loadState().orders.some((order) => order.team_id === session.currentTeam.id && order.quotationId === input.quotationId)) return { error: '该报价已经生成订单，请勿重复操作。' };
+  if (quotation.status !== '客户确认') return { error: '报价需要先标记为客户确认，才能转订单。' };
   const depositAmount = money(input.depositAmount);
   const finalPaymentAmount = money(input.finalPaymentAmount);
   if (depositAmount + finalPaymentAmount <= 0) return { error: '请填写定金或尾款金额。' };
@@ -37,6 +37,7 @@ export function createOrderFromQuotation(session: SessionContext, input: CreateO
   const state = loadState();
   state.orders.push(order);
   saveState(state);
+  markQuotationConverted(session, quotation.id);
 
   const tasks = order.receivableNodes
     .filter((node) => node.plannedAmount > 0)

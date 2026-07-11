@@ -259,7 +259,16 @@ export interface CreateTaskInput {
   relatedId?: string;
 }
 
-export type QuotationStatus = '草稿' | '已发送' | '客户确认';
+export type QuotationStatus = '草稿' | '已发送' | '客户确认' | '已被替代' | '已转订单' | '已过期' | '已作废';
+
+export interface QuotationSet {
+  id: string;
+  team_id: string;
+  customerId: string;
+  opportunityId: string;
+  name: string;
+  createdAt: string;
+}
 
 export interface QuotationLineItem {
   id: string;
@@ -276,6 +285,7 @@ export interface Quotation {
   team_id: string;
   customerId: string;
   opportunityId?: string;
+  quotationSetId?: string;
   version: number;
   status: QuotationStatus;
   productAmount: number;
@@ -290,6 +300,9 @@ export interface Quotation {
   updatedAt?: string;
   copiedFromId?: string;
   confirmedAt?: string;
+  sentAt?: string;
+  endedAt?: string;
+  statusReason?: string;
 }
 
 export interface CreateQuotationInput {

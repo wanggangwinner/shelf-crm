@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createCustomer, resetCustomerModuleState } from '../dist/api/customers.js';
 import { createContact, createOpportunity, ensureCustomerFoundation, getDefaultOpportunity, listContacts, listOpportunities, resetOpportunityState } from '../dist/api/opportunities.js';
 import { createFollowUp, resetFollowUpModuleState } from '../dist/api/followUps.js';
-import { createQuotation, createTask, confirmQuotation, resetMvpFlowState } from '../dist/api/mvpFlow.js';
+import { createQuotation, createTask, confirmQuotation, sendQuotation, resetMvpFlowState } from '../dist/api/mvpFlow.js';
 import { createOrderFromQuotation, resetOrderFlowState } from '../dist/api/orderFlow.js';
 
 globalThis.localStorage = { store: new Map(), getItem(key) { return this.store.get(key) ?? null; }, setItem(key, value) { this.store.set(key, String(value)); }, removeItem(key) { this.store.delete(key); }, clear() { this.store.clear(); } };
@@ -38,7 +38,7 @@ test('new sales records inherit the customer default opportunity', () => {
   const followUp = createFollowUp(session, { customerId: c.id, method: '微信', rawContent: '确认尺寸' }).followUp;
   const task = createTask(session, { customerId: c.id, title: '发送方案' }).task;
   const quotation = createQuotation(session, { customerId: c.id, productName: '主架', quantity: 1, unitPrice: 1000 }).quotation;
-  confirmQuotation(session, quotation.id);
+  sendQuotation(session, quotation.id); confirmQuotation(session, quotation.id);
   const order = createOrderFromQuotation(session, { customerId: c.id, quotationId: quotation.id, depositAmount: 300, finalPaymentAmount: 700 }).order;
   assert.equal(followUp.opportunityId, opportunity.id); assert.equal(task.opportunityId, opportunity.id); assert.equal(quotation.opportunityId, opportunity.id); assert.equal(order.opportunityId, opportunity.id);
 });
