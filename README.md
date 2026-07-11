@@ -88,6 +88,7 @@ Use this exact path for the first whole-system check:
 - Default shelf-industry configuration seed.
 - Web shell with 10 primary modules and mobile bottom navigation foundation.
 - Customer creation with demand phrase parsing, phone extraction, duplicate warning, team isolation, detail card, and ownership history.
+- Customer contacts and separate sales opportunities, including idempotent default-project migration for existing local data.
 - Follow-up records with raw content, generated summary, objections/blockers, and next action.
 - Task reminders with manual creation, quotation task creation, order receivable task creation, and task completion.
 - Quotation management with lightweight structured line item, fee breakdown, version number, total amount, and confirmation state.

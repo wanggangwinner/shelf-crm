@@ -9,6 +9,7 @@ import { createFollowUp, generateFollowUpAiDraft, listFollowUps } from '../api/f
 import { bindFileAsset, listFileAssets } from '../api/fileAssets.js';
 import { listCustomerTimeline } from '../api/customerTimeline.js';
 import { getMvpDashboard } from '../api/mvpFlow.js';
+import { createContact, createOpportunity, listContacts, listOpportunities } from '../api/opportunities.js';
 import { DEFAULT_SHELF_CONFIG } from '../domain/defaultConfig.js';
 import type {
   CreateCustomerInput,
@@ -274,6 +275,8 @@ function customerDetailTemplate(session: SessionContext, customer: Customer, pag
   const followUps = listFollowUps(session, customer.id);
   const timeline = listCustomerTimeline(session, customer.id);
   const files = listFileAssets(session, customer.id);
+  const contacts = listContacts(session, customer.id);
+  const opportunities = listOpportunities(session, customer.id);
   const completenessStatus = getCompletenessStatus(customer);
 
   return `
@@ -281,6 +284,7 @@ function customerDetailTemplate(session: SessionContext, customer: Customer, pag
       <div class="section-title"><div><span class="section-label">客户详情</span><h2>${escapeHtml(customer.name)}</h2></div><small>创建时间：${new Date(customer.createdAt).toLocaleString()}</small></div>
       <div class="status-card"><div><span>当前阶段</span><strong>${escapeHtml(customer.stage)}</strong></div><div><span>客户等级</span><strong>${escapeHtml(customer.level)}</strong></div><div><span>需求面积</span><strong>${escapeHtml(customer.storeArea || '未填写')}</strong></div><div><span>店铺类型</span><strong>${escapeHtml(customer.storeType || '未填写')}</strong></div><div class="${completenessStatus === '资料完整' ? 'complete' : 'incomplete'}"><span>资料状态</span><strong>${completenessStatus}</strong></div></div>
       <div class="detail-grid"><div><span>联系人</span><strong>${escapeHtml(customer.contactName || '未填写')}</strong></div><div><span>手机号</span><strong>${escapeHtml(customer.phone || '未填写')}</strong></div><div><span>微信</span><strong>${escapeHtml(customer.wechat || '未填写')}</strong></div><div><span>城市/区域</span><strong>${escapeHtml(customer.city || '未填写')}</strong></div><div><span>详细地址</span><strong>${escapeHtml(customer.address || '未填写')}</strong></div><div><span>客户来源</span><strong>${escapeHtml(customer.source || '未填写')}</strong></div><div class="full"><span>需求描述</span><strong>${escapeHtml(customer.demandText || '未填写')}</strong></div></div>
+      <div class="foundation-grid"><div class="follow-up-panel"><div class="section-title"><div><span class="section-label">联系人</span><h2>客户联系人</h2></div></div><form id="contact-form" class="follow-up-form" data-customer-id="${customer.id}"><label>姓名<input name="name" required></label><label>手机<input name="phone"></label><label>微信<input name="wechat"></label><button type="submit" class="primary compact-primary">添加联系人</button></form>${contacts.length ? contacts.map((item) => `<div class="foundation-item"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.phone || item.wechat || '未填写联系方式')}</span></div>`).join('') : '<p class="muted">暂无联系人</p>'}</div><div class="follow-up-panel"><div class="section-title"><div><span class="section-label">项目/商机</span><h2>销售项目</h2></div></div><form id="opportunity-form" class="follow-up-form" data-customer-id="${customer.id}"><label class="full">项目名称<input name="name" required placeholder="例如：二店扩建"></label><button type="submit" class="primary compact-primary">创建项目</button></form>${opportunities.map((item) => `<div class="foundation-item"><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.stage)}${item.isDefault ? ' · 默认项目' : ''}</span></div>`).join('')}</div></div>
       <div class="follow-up-panel"><div class="section-title"><div><span class="section-label">跟进记录</span><h2>新增跟进</h2></div><small>原始内容保留，系统生成辅助摘要和下一步建议。</small></div>${pageState.followUpError ? `<div class="notice error">${escapeHtml(pageState.followUpError)}</div>` : ''}<form id="follow-up-form" class="follow-up-form" data-customer-id="${customer.id}"><label>跟进方式<select name="method"><option value="微信">微信</option><option value="电话">电话</option><option value="面谈">面谈</option><option value="其他">其他</option></select></label><label class="full">原始跟进内容<textarea name="rawContent" rows="5" placeholder="粘贴微信聊天、电话记录或面谈纪要"></textarea></label><label class="full">手动摘要（可选）<input name="summary" placeholder="不填则由系统生成摘要"></label><label class="full">下一步动作（可选）<input name="nextAction" placeholder="不填则由系统建议下一步"></label><button type="submit" class="primary compact-primary">保存跟进记录</button></form></div>
       <div class="follow-up-list"><h3>历史跟进</h3>${followUps.length ? followUps.map(followUpTemplate).join('') : '<p class="muted">暂无跟进记录</p>'}</div>
       <div class="follow-up-panel"><div class="section-title"><div><span class="section-label">资料文件</span><h2>轻量文件绑定</h2></div><small>本地 MVP 仅保存文件元数据和业务关联，不上传文件内容。</small></div><form id="file-binding-form" class="follow-up-form" data-customer-id="${customer.id}"><label class="full">选择文件<input name="file" type="file"></label><label class="full">备注<input name="note" placeholder="例如：现场照片、尺寸图、合同扫描件"></label><button type="submit" class="primary compact-primary">绑定文件</button></form>${files.length ? `<div class="mvp-list">${files.map((file) => `<div class="mvp-item"><div><strong>${escapeHtml(file.fileName)}</strong><span>${escapeHtml(file.note || file.fileType)}</span></div></div>`).join('')}</div>` : '<p class="muted">暂无绑定文件</p>'}</div>
@@ -298,6 +302,8 @@ function bindCustomerPage(root: HTMLElement, session: SessionContext): void {
   const form = root.querySelector<HTMLFormElement>('#customer-form');
   const followUpForm = root.querySelector<HTMLFormElement>('#follow-up-form');
   const fileBindingForm = root.querySelector<HTMLFormElement>('#file-binding-form');
+  const contactForm = root.querySelector<HTMLFormElement>('#contact-form');
+  const opportunityForm = root.querySelector<HTMLFormElement>('#opportunity-form');
   const demandInput = root.querySelector<HTMLInputElement>('#demand-text');
   const storeTypeInput = root.querySelector<HTMLInputElement>('#store-type');
   const storeAreaInput = root.querySelector<HTMLInputElement>('#store-area');
@@ -356,6 +362,16 @@ function bindCustomerPage(root: HTMLElement, session: SessionContext): void {
     const result = file instanceof File ? bindFileAsset(session, { customerId, targetType: 'customer', targetId: customerId, fileName: file.name, fileType: file.type, size: file.size, note: String(data.get('note') ?? '') }) : { error: '请选择文件。' };
     if (result.error) { renderShell(root, session, '客户管理', { selectedCustomerId: customerId, followUpError: result.error }); return; }
     renderShell(root, session, '客户管理', { selectedCustomerId: customerId, message: '文件已绑定到客户。' });
+  });
+  contactForm?.addEventListener('submit', (event) => {
+    event.preventDefault(); const customerId = contactForm.dataset.customerId ?? ''; const data = new FormData(contactForm);
+    const result = createContact(session, { customerId, name: String(data.get('name') ?? ''), phone: String(data.get('phone') ?? ''), wechat: String(data.get('wechat') ?? '') });
+    renderShell(root, session, '客户管理', { selectedCustomerId: customerId, followUpError: result.error, message: result.contact ? '联系人已添加。' : undefined });
+  });
+  opportunityForm?.addEventListener('submit', (event) => {
+    event.preventDefault(); const customerId = opportunityForm.dataset.customerId ?? ''; const data = new FormData(opportunityForm);
+    const result = createOpportunity(session, { customerId, name: String(data.get('name') ?? '') });
+    renderShell(root, session, '客户管理', { selectedCustomerId: customerId, followUpError: result.error, message: result.opportunity ? '项目已创建。' : undefined });
   });
 }
 
