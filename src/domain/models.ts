@@ -122,6 +122,38 @@ export interface Customer {
   archivedAt?: string;
 }
 
+export interface Contact {
+  id: string;
+  team_id: string;
+  customerId: string;
+  name: string;
+  phone: string;
+  wechat: string;
+  title: string;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type OpportunityStage = '线索' | '初步沟通' | '资料/现场' | '设计/方案' | '报价谈判' | '成交确认' | '交付/安装' | '回款/售后' | '复购/转介绍' | '流失';
+
+export interface Opportunity {
+  id: string;
+  team_id: string;
+  customerId: string;
+  name: string;
+  stage: OpportunityStage;
+  ownerUserId: string;
+  collaboratorUserIds: string[];
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
+}
+
+export interface CreateContactInput { customerId: string; name: string; phone?: string; wechat?: string; title?: string; isPrimary?: boolean }
+export interface CreateOpportunityInput { customerId: string; name: string; stage?: OpportunityStage }
+
 export interface CustomerOwnershipHistory {
   id: string;
   team_id: string;
