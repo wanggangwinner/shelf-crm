@@ -33,7 +33,7 @@ export function createOrderFromQuotation(session: SessionContext, input: CreateO
     { id: createId(), title: '定金', plannedAmount: depositAmount, receivedAmount: 0, dueAt: input.depositDueAt || dayOffset(0), status: depositAmount > 0 ? '待收款' : '已收款' },
     { id: createId(), title: '尾款', plannedAmount: finalPaymentAmount, receivedAmount: 0, dueAt: input.finalDueAt || dayOffset(7), status: finalPaymentAmount > 0 ? '待收款' : '已收款' },
   ];
-  const order: SalesOrder = { id: createId(), team_id: session.currentTeam.id, customerId: input.customerId, quotationId: input.quotationId, orderAmount: money(depositAmount + finalPaymentAmount), status: depositAmount > 0 ? '待收定金' : '待尾款', receivableNodes: nodes, payments: [], createdAt: now(), updatedAt: now() };
+  const order: SalesOrder = { id: createId(), team_id: session.currentTeam.id, customerId: input.customerId, opportunityId: quotation.opportunityId, quotationId: input.quotationId, orderAmount: money(depositAmount + finalPaymentAmount), status: depositAmount > 0 ? '待收定金' : '待尾款', receivableNodes: nodes, payments: [], createdAt: now(), updatedAt: now() };
   const state = loadState();
   state.orders.push(order);
   saveState(state);
@@ -42,6 +42,7 @@ export function createOrderFromQuotation(session: SessionContext, input: CreateO
     .filter((node) => node.plannedAmount > 0)
     .map((node) => createTask(session, {
       customerId: order.customerId,
+      opportunityId: order.opportunityId,
       title: `收取${node.title} ${money(node.plannedAmount)} 元`,
       dueAt: node.dueAt,
       source: node.title === '定金' ? '订单生成' : '回款生成',

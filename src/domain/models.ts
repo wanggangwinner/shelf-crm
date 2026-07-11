@@ -209,6 +209,7 @@ export interface FollowUpRecord {
   id: string;
   team_id: string;
   customerId: string;
+  opportunityId?: string;
   ownerUserId: string;
   method: FollowUpMethod;
   rawContent: string;
@@ -223,6 +224,7 @@ export interface FollowUpRecord {
 
 export interface CreateFollowUpInput {
   customerId: string;
+  opportunityId?: string;
   method: FollowUpMethod;
   rawContent: string;
   summary?: string;
@@ -237,6 +239,7 @@ export interface SalesTask {
   id: string;
   team_id: string;
   customerId: string;
+  opportunityId?: string;
   ownerUserId: string;
   title: string;
   dueAt: string;
@@ -249,6 +252,7 @@ export interface SalesTask {
 
 export interface CreateTaskInput {
   customerId: string;
+  opportunityId?: string;
   title: string;
   dueAt?: string;
   source?: TaskSource;
@@ -271,6 +275,7 @@ export interface Quotation {
   id: string;
   team_id: string;
   customerId: string;
+  opportunityId?: string;
   version: number;
   status: QuotationStatus;
   productAmount: number;
@@ -289,6 +294,7 @@ export interface Quotation {
 
 export interface CreateQuotationInput {
   customerId: string;
+  opportunityId?: string;
   productName?: string;
   specification?: string;
   quantity?: number;
@@ -324,6 +330,7 @@ export interface CustomerTimelineEvent {
   id: string;
   team_id: string;
   customerId: string;
+  opportunityId?: string;
   type: 'follow_up' | 'task' | 'quotation' | 'order' | 'payment' | 'file';
   title: string;
   detail: string;
@@ -355,6 +362,7 @@ export interface SalesOrder {
   id: string;
   team_id: string;
   customerId: string;
+  opportunityId?: string;
   quotationId: string;
   orderAmount: number;
   status: OrderStatus;

@@ -1,5 +1,6 @@
 import type { CreateQuotationInput, CreateTaskInput, Quotation, QuotationLineItem, SalesTask, SessionContext } from '../domain/models.js';
 import { getCustomer } from './customers.js';
+import { getDefaultOpportunity, getOpportunity } from './opportunities.js';
 
 const STORAGE_KEY = 'shelf-crm-mvp-flow-state-v1';
 const ORDER_STORAGE_KEY = 'shelf-crm-order-flow-state-v1';
@@ -16,9 +17,10 @@ function customerError(session: SessionContext, customerId: string): string | un
 export function listTasks(session: SessionContext): SalesTask[] { return loadState().tasks.filter((task) => task.team_id === session.currentTeam.id).sort((a, b) => a.status.localeCompare(b.status) || a.dueAt.localeCompare(b.dueAt)); }
 export function createTask(session: SessionContext, input: CreateTaskInput): { task?: SalesTask; error?: string } {
   const error = customerError(session, input.customerId); if (error) return { error };
+  const opportunity = input.opportunityId ? getOpportunity(session, input.opportunityId) : getDefaultOpportunity(session, input.customerId); if (!opportunity || opportunity.customerId !== input.customerId) return { error: '项目不存在或不属于当前客户。' };
   const title = input.title.trim(); if (!title) return { error: '请填写任务标题。' };
   const state = loadState();
-  const task: SalesTask = { id: createId(), team_id: session.currentTeam.id, customerId: input.customerId, ownerUserId: session.user.id, title, dueAt: input.dueAt || dayOffset(1), status: '待处理', source: input.source ?? '手动', relatedId: input.relatedId, createdAt: now() };
+  const task: SalesTask = { id: createId(), team_id: session.currentTeam.id, customerId: input.customerId, opportunityId: opportunity.id, ownerUserId: session.user.id, title, dueAt: input.dueAt || dayOffset(1), status: '待处理', source: input.source ?? '手动', relatedId: input.relatedId, createdAt: now() };
   state.tasks.push(task); saveState(state); return { task };
 }
 export function completeTask(session: SessionContext, taskId: string): { task?: SalesTask; error?: string } {
@@ -35,10 +37,11 @@ function normalizeItems(input: CreateQuotationInput): QuotationLineItem[] | unde
 function applyTotals(quotation: Quotation): void { quotation.productAmount = money(quotation.lineItems.reduce((sum, item) => sum + item.subtotal, 0)); quotation.totalAmount = money(quotation.productAmount + quotation.freightFee + quotation.installationFee + quotation.designFee - quotation.discountAmount); }
 export function createQuotation(session: SessionContext, input: CreateQuotationInput): { quotation?: Quotation; task?: SalesTask; error?: string } {
   const error = customerError(session, input.customerId); if (error) return { error }; const lineItems = normalizeItems(input); if (!lineItems) return { error: '每个报价产品都必须填写名称，且数量和单价必须大于 0。' };
+  const opportunity = input.opportunityId ? getOpportunity(session, input.opportunityId) : getDefaultOpportunity(session, input.customerId); if (!opportunity || opportunity.customerId !== input.customerId) return { error: '项目不存在或不属于当前客户。' };
   const state = loadState(); const timestamp = now();
-  const quotation: Quotation = { id: createId(), team_id: session.currentTeam.id, customerId: input.customerId, version: Math.max(0, ...state.quotations.filter((q) => q.team_id === session.currentTeam.id && q.customerId === input.customerId).map((q) => q.version)) + 1, status: '已发送', productAmount: 0, freightFee: money(input.freightFee), installationFee: money(input.installationFee), designFee: money(input.designFee), discountAmount: money(input.discountAmount), totalAmount: 0, lineItems, feedback: '', createdAt: timestamp, updatedAt: timestamp };
+  const quotation: Quotation = { id: createId(), team_id: session.currentTeam.id, customerId: input.customerId, opportunityId: opportunity.id, version: Math.max(0, ...state.quotations.filter((q) => q.team_id === session.currentTeam.id && q.customerId === input.customerId).map((q) => q.version)) + 1, status: '已发送', productAmount: 0, freightFee: money(input.freightFee), installationFee: money(input.installationFee), designFee: money(input.designFee), discountAmount: money(input.discountAmount), totalAmount: 0, lineItems, feedback: '', createdAt: timestamp, updatedAt: timestamp };
   applyTotals(quotation); if (quotation.totalAmount <= 0) return { error: '报价总额必须大于 0，折扣不能超过报价金额。' };
-  state.quotations.push(quotation); saveState(state); const task = createTask(session, { customerId: input.customerId, title: '确认客户是否接受报价，并记录异议或修改意见', dueAt: dayOffset(0), source: '报价生成', relatedId: quotation.id }).task; return { quotation, task };
+  state.quotations.push(quotation); saveState(state); const task = createTask(session, { customerId: input.customerId, opportunityId: opportunity.id, title: '确认客户是否接受报价，并记录异议或修改意见', dueAt: dayOffset(0), source: '报价生成', relatedId: quotation.id }).task; return { quotation, task };
 }
 export function updateQuotationDraft(session: SessionContext, quotationId: string, changes: Partial<CreateQuotationInput>): { quotation?: Quotation; error?: string } {
   const state = loadState(); const quotation = state.quotations.find((q) => q.team_id === session.currentTeam.id && q.id === quotationId); if (!quotation) return { error: '报价不存在或不属于当前团队。' }; if (quotation.status === '客户确认') return { error: '客户确认的报价不能直接修改，请复制为新版本。' };

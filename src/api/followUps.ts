@@ -7,6 +7,7 @@ import type {
   SessionContext,
 } from '../domain/models.js';
 import { getCustomer } from './customers.js';
+import { getDefaultOpportunity, getOpportunity } from './opportunities.js';
 
 const STORAGE_KEY = 'shelf-crm-follow-up-module-state-v1';
 
@@ -131,6 +132,8 @@ export function createFollowUp(
     return { error: '请填写原始跟进内容。' };
   }
 
+  const opportunity = input.opportunityId ? getOpportunity(session, input.opportunityId) : getDefaultOpportunity(session, customer.id);
+  if (!opportunity || opportunity.customerId !== customer.id) return { error: '项目不存在或不属于当前客户。' };
   const state = loadState();
   const draft = generateFollowUpAiDraft(rawContent);
   const createdAt = now();
@@ -139,6 +142,7 @@ export function createFollowUp(
     id: createId(),
     team_id: session.currentTeam.id,
     customerId: customer.id,
+    opportunityId: opportunity.id,
     ownerUserId: session.user.id,
     method,
     rawContent,
